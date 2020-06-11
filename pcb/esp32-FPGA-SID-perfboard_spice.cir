@@ -1,0 +1,7 @@
+esp32-FPGA-SID-perfboard
+C3 15 16 2.2nF IC=0
+C4 14 13 2.2nF IC=0
+
+.TRAN 1ms 100ms
+* .AC DEC 100 100 1MEG
+.END

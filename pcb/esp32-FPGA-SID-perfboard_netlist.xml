@@ -1,0 +1,286 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Created with Fritzing (http://www.fritzing.org/) -->
+<netlist sketch="esp32-FPGA-SID-perfboard.fzz" date="ven. juin 12 00:33:33 2020">
+ <net>
+  <connector id="connector7" name="GND">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+  <connector id="connector0" name="1">
+   <part label="12v Au Sid Lat Clk Dat V- 5v" title="Header 8" id="855625810"/>
+  </connector>
+  <connector id="connector12" name="OE">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+  <connector id="connector7" name="GND">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+  <connector id="connector13" name="pin14">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector12" name="OE">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector13" name="DS">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+  <connector id="connector8" name="Q7'">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector3" name="4">
+   <part label="12v Au Sid Lat Clk Dat V- 5v" title="Header 8" id="855625810"/>
+  </connector>
+  <connector id="connector10" name="SH_CP">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+  <connector id="connector10" name="SH_CP">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="2">
+   <part label="12v Au Sid Lat Clk Dat V- 5v" title="Header 8" id="855625810"/>
+  </connector>
+  <connector id="connector9" name="MR">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+  <connector id="connector15" name="VCC">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+  <connector id="connector24" name="pin25">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector9" name="MR">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+  <connector id="connector15" name="VCC">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector5" name="6">
+   <part label="12v Au Sid Lat Clk Dat V- 5v" title="Header 8" id="855625810"/>
+  </connector>
+  <connector id="connector5" name="pin6">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector7" name="8">
+   <part label="12v Au Sid Lat Clk Dat V- 5v" title="Header 8" id="855625810"/>
+  </connector>
+  <connector id="connector27" name="pin28">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector3" name="Q4">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+  <connector id="connector17" name="pin18">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector16" name="pin17">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector4" name="Q5">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector5" name="Q6">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+  <connector id="connector15" name="pin16">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector14" name="Q0">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+  <connector id="connector12" name="pin13">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector6" name="pin7">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector5" name="Q6">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="0">
+   <part label="C4" title="Ceramic Capacitor" id="856050540"/>
+  </connector>
+  <connector id="connector1" name="pin2">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector18" name="pin19">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector2" name="Q3">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector4" name="pin5">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector6" name="Q7">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="1">
+   <part label="C4" title="Ceramic Capacitor" id="856050540"/>
+  </connector>
+  <connector id="connector0" name="pin1">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector7" name="pin8">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector4" name="Q5">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="Q1">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+  <connector id="connector11" name="pin12">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector1" name="1">
+   <part label="C3" title="Ceramic Capacitor" id="856050560"/>
+  </connector>
+  <connector id="connector2" name="pin3">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector9" name="pin10">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector2" name="Q3">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector10" name="pin11">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector1" name="Q2">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="0">
+   <part label="C3" title="Ceramic Capacitor" id="856050560"/>
+  </connector>
+  <connector id="connector3" name="pin4">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector8" name="pin9">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector3" name="Q4">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector2" name="3">
+   <part label="12v Au Sid Lat Clk Dat V- 5v" title="Header 8" id="855625810"/>
+  </connector>
+  <connector id="connector13" name="DS">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector11" name="ST_CP">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+  <connector id="connector4" name="5">
+   <part label="12v Au Sid Lat Clk Dat V- 5v" title="Header 8" id="855625810"/>
+  </connector>
+  <connector id="connector11" name="ST_CP">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector14" name="Q0">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+  <connector id="connector21" name="pin22">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector19" name="pin20">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector1" name="Q2">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector6" name="Q7">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+  <connector id="connector14" name="pin15">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector26" name="pin27">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+  <connector id="connector6" name="7">
+   <part label="12v Au Sid Lat Clk Dat V- 5v" title="Header 8" id="855625810"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector0" name="Q1">
+   <part label="74HC597" title="74HC595" id="855612340"/>
+  </connector>
+  <connector id="connector20" name="pin21">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector8" name="Q7'">
+   <part label="74HC596" title="74HC595" id="855612330"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector25" name="pin26">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector22" name="pin23">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+ <net>
+  <connector id="connector23" name="pin24">
+   <part label="SID6581 / SID6582 / FPGASID" title="SID 6581" id="855612320"/>
+  </connector>
+ </net>
+</netlist>
