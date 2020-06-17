@@ -4,7 +4,7 @@
 *eMail=
 *
 *Project=esp32-FPGA-SID-perfboard
-*Date=17:33:39
+*Date=18:31:35
 *CreatedBy=Fritzing 0.9.3b.04.19.5c895d327c44a3114e5fcc9d8260daf0cbb52806
 *
 *
@@ -13,16 +13,16 @@
 *Rotation in degree (0-360, math. pos.)
 *
 *No;Value;Package;X;Y;Rotation;Side;Name
-1;;DIP (Dual Inline) [THT];32.6017;-41.3394;-90;Bottom;SID6581 / SID6582 / FPGASID
-2;;;23.4696;-27.8348;0;Bottom;Via2
-3;;DIP16 [THT];35.1417;-22.2894;90;Bottom;74HC596
-4;2.2nF;100 mil [THT, multilayer];22.6577;-30.9134;180;Bottom;C3
-5;;;21.6408;-11.9852;0;Bottom;Via3
-6;;DIP16 [THT];70.0954;-43.3581;0;Bottom;74HC597
-7;;;44.8056;-12.5948;0;Bottom;Via1
-8;;;11.8872;-13.2044;0;Bottom;Via4
-9;2.2nF;100 mil [THT, multilayer];17.5777;-30.9134;180;Bottom;C4
-10;;;13.716;-10.1564;0;Bottom;Via6
-11;;;16.1544;-6.49879;0;Bottom;Via7
-12;;1x08_smd;17.3617;-7.42935;180;Top;12v Au Sid Lat Clk Dat V- 5v
-13;;;54.5592;-33.3212;0;Bottom;Via5
+1;;;23.4697;-27.8349;0;Bottom;Via2
+2;;;11.8872;-13.2045;0;Bottom;Via4
+3;;1x08_smd;17.3617;-7.42936;180;Top;12v Au Sid Lat Clk Dat 5v V-
+4;;DIP16 [THT];70.0955;-43.3582;0;Bottom;74HC597
+5;2.2nF;100 mil [THT, multilayer];17.5776;-30.9133;180;Bottom;C4
+6;;;16.1545;-6.49894;0;Bottom;Via7
+7;;;54.5593;-33.3213;0;Bottom;Via5
+8;;;44.8057;-12.5949;0;Bottom;Via1
+9;2.2nF;100 mil [THT, multilayer];22.6576;-30.9133;180;Bottom;C3
+10;;;13.716;-10.1565;0;Bottom;Via6
+11;;;21.6409;-11.9853;0;Bottom;Via3
+12;;DIP16 [THT];35.1417;-22.2894;90;Bottom;74HC596
+13;;DIP (Dual Inline) [THT];32.6017;-41.3394;-90;Bottom;SID6581 / SID6582 / FPGASID
