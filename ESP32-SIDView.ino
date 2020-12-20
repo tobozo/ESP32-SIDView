@@ -1,39 +1,63 @@
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 #include <ESP32-Chimera-Core.h>
-//#include <M5Stack.h>
+#include <M5StackUpdater.h> // https://github.com/tobozo/M5Stack-SD-Updater
 #define tft M5.Lcd
+#include "SDUpdaterHooks.h"
 
-#include <WiFi.h>
-#include <WiFiClient.h>
-#include <WebServer.h>
-#include <ESPmDNS.h>
-#include <WiFiUdp.h>
-#include <ArduinoOTA.h>
+//#ifdef BOARD_HAS_PSRAM
+  // OTA, archive download & unpacker
+  #include "web.h"
+//#endif
 
-#include "web.h"
 #include "assets.h"
 #include "ADSR.h"
 
-#include "SidPlayer.h"
+// hail the c64 colors !
+#define C64_DARKBLUE      0x4338ccU
+#define C64_LIGHTBLUE     0xC9BEFFU
+#define C64_MAROON        0xA1998Bu
+#define C64_MAROON_DARKER 0x797264U
+#define C64_MAROON_DARK   0x938A7DU
+
+#include <SidPlayer.h> // https://github.com/hpwit/SID6581
 #define SID_CLOCK 25
 #define SID_DATA 15
 #define SID_LATCH 2
 #define SID_CLOCK_PIN 26
+SIDTunesPlayer *sidPlayer = nullptr;
 
-SIDTunesPlayer * sidPlayer;
-ADSR *env = new ADSR[3];
+#include "SIDArchiveManager.h"
+#include "SIDExplorer.h"
+
+
+SID_Archive C64MusicDemos = { "C64MusicDemos", "https://phpsecu.re/C64MusicDemos.tar.gz", "/DEMOS",     &MD5Config };
+SID_Archive C64Musicians  = { "C64Musicians",  "https://phpsecu.re/C64Musicians.tar.gz",  "/MUSICIANS", &MD5Config };
+SID_Archive C64MusicGames = { "C64MusicGames", "https://phpsecu.re/C64MusicGames.tar.gz", "/GAMES",     &MD5Config };
+SID_Archive HVSC[3] = { C64MusicGames, C64MusicDemos, C64Musicians };
+
+size_t totalsidpackages = sizeof( HVSC ) / sizeof( HVSC[0] );
+
+
+//#pragma warning pop -Wwarning=unused-variable
+
+// TODO: wifi => sid hosting site => targz => sid file
+// TODO: better ADSR
+
+
+
+static ADSR *env = new ADSR[3];
 
 #define SONG_TIMEOUT 180 // 180s = 3mn
 #define SONG_TIMEOUT_MS SONG_TIMEOUT*1000
-unsigned long lastEvent = millis();
 
-char fileName[80];
-int positionInPlaylist = -1;
-int lastresp = -1;
+
+
 bool playing = false;
-unsigned long lastpush = millis();
-int debounce = 300;
 int HEADER_HEIGHT = 41, VOICE_HEIGHT = 29, VOICE_WIDTH=64;
+
 
 TFT_eSprite spriteText      = TFT_eSprite( &tft );
 TFT_eSprite spriteVoice1    = TFT_eSprite( &tft );
@@ -42,6 +66,12 @@ TFT_eSprite spriteVoice3    = TFT_eSprite( &tft );
 TFT_eSprite spriteWaveform1 = TFT_eSprite( &tft );
 TFT_eSprite spriteWaveform2 = TFT_eSprite( &tft );
 TFT_eSprite spriteWaveform3 = TFT_eSprite( &tft );
+
+TFT_eSprite spriteIconNoise    = TFT_eSprite( &tft );
+TFT_eSprite spriteIconTriangle = TFT_eSprite( &tft );
+TFT_eSprite spriteIconSawtooth = TFT_eSprite( &tft );
+TFT_eSprite spriteIconPulse    = TFT_eSprite( &tft );
+
 // array stored sprites
 TFT_eSprite spriteVoices[3]    = { spriteVoice1, spriteVoice2, spriteVoice3 };
 TFT_eSprite spriteWaveforms[3] = { spriteWaveform1, spriteWaveform2, spriteWaveform3 };
@@ -145,9 +175,9 @@ struct OscilloView {
   float pan;
   uint16_t graphWidth;
   uint16_t graphHeight;
-  uint16_t bgcolor = TFT_BLACK;
-  uint16_t fgcolor = TFT_WHITE;
-  uint16_t gridcolor = tft.color565( 128,128,128 );
+  std::uint32_t bgcolor = C64_DARKBLUE;
+  std::uint32_t fgcolor = C64_LIGHTBLUE;
+  std::uint32_t gridcolor = tft.color565( 128,128,128 );
   uint16_t pulsewidth = 2048; // 0-4095
   uint8_t oscType = 0;
   uint32_t tt = 0, ttprev=0;
@@ -157,7 +187,7 @@ struct OscilloView {
   float* floatValuesCache = nullptr;
   int32_t lasty;
   ~OscilloView() { if( valuesCache != nullptr ) valuesCache=NULL; }
-  OscilloView( uint16_t width, uint16_t height, uint32_t freqHz=1, uint8_t oscType=0, uint16_t fgcol=TFT_WHITE, uint16_t bgcol=TFT_BLACK  )  {
+  OscilloView( uint16_t width, uint16_t height, uint32_t freqHz=1, uint8_t oscType=0, std::uint32_t fgcol=C64_LIGHTBLUE, std::uint32_t bgcol=C64_DARKBLUE  )  {
     osc = new Oscillator( freqHz );
     env = new ADSR;
     sprite = new TFT_eSprite( &tft );
@@ -200,7 +230,7 @@ struct OscilloView {
     switch( type ) {
       case SID_WAVEFORM_TRIANGLE:
       case SID_WAVEFORM_SAWTOOTH:
-      case SID_WAVEFORM_SQUARE /* SID_WAVEFORM_SQUARE */: // square
+      case SID_WAVEFORM_PULSE /* SID_WAVEFORM_SQUARE */: // square
       case SID_WAVEFORM_NOISE:
         oscType = type;
       break;
@@ -222,7 +252,7 @@ struct OscilloView {
         log_v("Sawtooth ");
         return osc->getSawTooth( t );
       break;
-      case SID_WAVEFORM_SQUARE /* SID_WAVEFORM_SQUARE */: // square
+      case SID_WAVEFORM_PULSE /* SID_WAVEFORM_SQUARE */: // square
         log_v("Square (pulse %d) ", pulsewidth);
         return osc->getSquare( t, pulsewidth );
       break;
@@ -268,7 +298,7 @@ struct OscilloView {
     sprite->drawPixel( graphWidth-1, graphHeight/2, gridcolor );
 
     if( valuesCache[tt] != lasty) {
-      log_v( lasty );
+      log_v( "%d\n", lasty );
       sprite->drawLine( graphWidth-2, lasty, graphWidth-1, valuesCache[tt], fgcolor );
     } else {
       sprite->drawPixel( graphWidth-1, valuesCache[tt], fgcolor );
@@ -313,7 +343,7 @@ vec2 getBezierPoint( vec2* points, int numPoints, float t ) {
 }
 
 
-void drawBezierCurve( TFT_eSprite &sprite, vec2* points, int numPoints, uint16_t color ) {
+void drawBezierCurve( TFT_eSprite &sprite, vec2* points, int numPoints, std::uint32_t color ) {
   int lastx = -1, lasty = -1;
   for( float i = 0 ; i < 1 ; i += 0.05 ) {
     vec2 coords = getBezierPoint( points, numPoints, i );
@@ -390,7 +420,7 @@ float fpsscale = 1000.0/fpsInterval; // fpi to fps
 int fps = 0;   // frames per second
 int lastfps = 0;
 float fpi = 0; // frames per interval
-bool showFPS = true;
+bool showFPS = false;
 
 void renderFPS() {
   unsigned long nowMillis = millis();
@@ -404,7 +434,8 @@ void renderFPS() {
   }
   if( fps != lastfps ) {
     tft.setCursor( 0, 0 );
-    tft.setTextColor( TFT_BLACK, TFT_WHITE );
+    tft.setTextColor( C64_DARKBLUE, C64_LIGHTBLUE );
+    tft.setTextDatum( TL_DATUM );
     tft.printf( "fps: %3d  ", fps );
   }
 }
@@ -430,16 +461,16 @@ void drawSquare( TFT_eSprite &sprite, int voice ) {
       yEnd    = up ? yStart : (yStart-pulseHeight)+1;
 
       // hline
-      sprite.drawFastHLine( xStart, yStart, pulseWidth, TFT_WHITE );
+      sprite.drawFastHLine( xStart, yStart, pulseWidth, C64_LIGHTBLUE );
       // vline
-      sprite.drawFastVLine( xEnd, yEnd, pulseHeight, TFT_WHITE );
+      sprite.drawFastVLine( xEnd, yEnd, pulseHeight, C64_LIGHTBLUE );
 
     }
     // trailing space
     if( xEnd < renderWidth ) {
       xEnd--;
       yEnd = up ? sprite.height() - pulseYPos : pulseYPos;
-      sprite.drawFastHLine( xEnd+1, yEnd, renderWidth-xEnd, TFT_WHITE );
+      sprite.drawFastHLine( xEnd+1, yEnd, renderWidth-xEnd, C64_LIGHTBLUE );
     }
 
   }
@@ -465,7 +496,7 @@ void drawTriangle( TFT_eSprite &sprite, int voice ) {
       xEnd    = -pulseWidth/2 + pulseWidth*i;
       yEnd    = up ? renderHeight-pulseYPos : (renderHeight-pulseYPos-pulseHeight)+1;
 
-      sprite.drawLine( xStart, yStart, xEnd, yEnd, TFT_WHITE );
+      sprite.drawLine( xStart, yStart, xEnd, yEnd, C64_LIGHTBLUE );
 
       xStart = xEnd;
       yStart = yEnd;
@@ -491,8 +522,8 @@ void drawSawtooth( TFT_eSprite &sprite, int voice ) {
       int x = pulseWidth*i;
       int y1 = vMiddle - pulseHeight;
       int y2 = vMiddle + pulseHeight;
-      sprite.drawLine( lastx, lasty, x, y1, TFT_WHITE );
-      sprite.drawLine( x, y1, x, y2, TFT_WHITE );
+      sprite.drawLine( lastx, lasty, x, y1, C64_LIGHTBLUE );
+      sprite.drawLine( x, y1, x, y2, C64_LIGHTBLUE );
       lastx = x;
       lasty = y2;
     }
@@ -517,9 +548,9 @@ void drawNoise( TFT_eSprite &sprite, int voice ) {
       vy = random( pulseHeight );
       y = up ? vMiddle+vy : vMiddle-vy;
       if( lastx==-1 || lasty==-1 ) {
-        sprite.drawPixel( x , y , TFT_WHITE );
+        sprite.drawPixel( x , y , C64_LIGHTBLUE );
       } else {
-        sprite.drawLine( lastx, lasty, x, y, TFT_WHITE );
+        sprite.drawLine( lastx, lasty, x, y, C64_LIGHTBLUE );
       }
       lastx = x;
       lasty = y;
@@ -533,7 +564,7 @@ void drawSilence( TFT_eSprite &sprite, int voice ) {
   int renderWidth  = sprite.width();
   int renderHeight = sprite.height();
   int vMiddle      = renderHeight / 2;
-  spriteVoices[voice].drawFastHLine( 0, vMiddle, renderWidth, TFT_WHITE );
+  spriteVoices[voice].drawFastHLine( 0, vMiddle, renderWidth, C64_LIGHTBLUE );
 }
 
 
@@ -570,13 +601,13 @@ void drawADSR( TFT_eSprite &sprite, int voice ) {
   releasePoint = { float(renderLeft+renderWidth), float(renderBottom) };
   vec2 adsrPoints[5] = { startPoint, attackPoint, decayPoint, sustainPoint, releasePoint };
 
-  drawBezierCurve( sprite, adsrPoints, 5, TFT_WHITE);
+  drawBezierCurve( sprite, adsrPoints, 5, C64_LIGHTBLUE);
 
 }
 
 
 void drawVoice( int voice ) {
-  spriteVoices[voice].fillSprite( TFT_BLACK );
+  spriteVoices[voice].fillSprite( C64_DARKBLUE );
 
   int attack   = sid.getAttack(voice);
   int decay    = sid.getDecay(voice);
@@ -731,7 +762,7 @@ void drawEnveloppe( TFT_eSprite &sprite, int voice ) {
   env[voice].setTargetRatioA(0.02);
   env[voice].setTargetRatioDR(0.01);
 
-  spriteWaveforms[voice].fillSprite( TFT_BLACK );
+  spriteWaveforms[voice].fillSprite( C64_DARKBLUE );
 
   unsigned long counter = 0;
   int maxframes = renderWidth;
@@ -750,8 +781,8 @@ void drawEnveloppe( TFT_eSprite &sprite, int voice ) {
       env[voice].process();
       float graphValue = renderHeight - env[voice].getOutput()*renderHeight;
       spriteWaveforms[voice].scroll( -1, 0 );
-      Serial.printf("Scrolling #%d\n", counter);
-      spriteWaveforms[voice].drawPixel( renderWidth-1, graphValue, TFT_WHITE );
+      Serial.printf("Scrolling #%d\n", (int)counter);
+      spriteWaveforms[voice].drawPixel( renderWidth-1, graphValue, C64_LIGHTBLUE );
       spriteWaveforms[voice].pushSprite( VOICE_WIDTH, HEADER_HEIGHT + ( voice*VOICE_HEIGHT ) );
     }
   }
@@ -763,7 +794,7 @@ void drawEnveloppe( TFT_eSprite &sprite, int voice ) {
 
 void renderVoice( int voice ) {
 
-  spriteVoices[voice].fillSprite( TFT_BLACK );
+  spriteVoices[voice].fillSprite( C64_DARKBLUE );
   uint8_t waveform = sid.getWaveForm(voice);
 
   uint32_t freq    = sid.getFrequencyHz(voice);
@@ -783,39 +814,49 @@ void renderVoice( int voice ) {
   oscViews[voice].setOscType( waveform );
   oscViews[voice].setPulseWidth( sid.getPulse(voice) );
 
-  /*
+/*
   oscViews[voice].setADSR( attack, decay, sustain, release );
   oscViews[voice].gate( sid.getGate( voice ) );
-  */
+*/
 
   oscViews[voice].pushView( VOICE_WIDTH, (HEADER_HEIGHT-1) + ( voice*VOICE_HEIGHT ) );
 
   spriteVoices[voice].setCursor( 0, 1 );
-  spriteText.setTextColor( TFT_WHITE, TFT_BLACK );
+  spriteVoices[voice].setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+  //spriteText.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+  //spriteText.setTextDatum( TL_DATUM );
 
   switch( waveform ) {
     case 0://SILENCE ?
       drawSilence( spriteVoices[voice], voice );
-      spriteVoices[voice].printf("#%d Silence", voice);
+      spriteVoices[voice].printf("#%d", voice);
+      spriteVoices[voice].drawFastHLine( 16, 4, 16, C64_LIGHTBLUE );
     break;
     case SID_WAVEFORM_TRIANGLE:
       drawTriangle( spriteVoices[voice], voice );
-      spriteVoices[voice].printf("#%d Triangle", voice);
+      spriteVoices[voice].printf("#%d", voice);
+      spriteIconTriangle.pushSprite( &spriteVoices[voice], 16, 0, TFT_BLACK );
+
     break;
     case SID_WAVEFORM_SAWTOOTH:
       drawSawtooth( spriteVoices[voice], voice );
-      spriteVoices[voice].printf("#%d Sawtooth", voice);
+      spriteVoices[voice].printf("#%d", voice);
+      spriteIconSawtooth.pushSprite( &spriteVoices[voice], 16, 0, TFT_BLACK );
     break;
-    case SID_WAVEFORM_SQUARE /* SID_WAVEFORM_SQUARE */: // square
+    case SID_WAVEFORM_PULSE /* SID_WAVEFORM_SQUARE */: // square
       drawSquare( spriteVoices[voice], voice );
-      spriteVoices[voice].printf("#%d Square", voice);
+      spriteVoices[voice].printf("#%d", voice);
+      spriteIconPulse.pushSprite( &spriteVoices[voice], 16, 0, TFT_BLACK );
     break;
     case SID_WAVEFORM_NOISE:
       drawNoise( spriteVoices[voice], voice );
-      spriteVoices[voice].printf("#%d Noise", voice);
+      spriteVoices[voice].printf("#%d", voice);
+      spriteIconNoise.pushSprite( &spriteVoices[voice], 16, 0, TFT_BLACK );
     break;
     default:
-      Serial.printf("Unhandled waveform value %d for voice #%d\n", waveform, voice );
+      //Serial.printf("Unhandled waveform value %d for voice #%d\n", waveform, voice );
+      drawSquare( spriteVoices[voice], voice );
+      spriteVoices[voice].printf("#%d ????", voice);
   }
 
   // drawEnveloppe( spriteVoices[voice], voice );
@@ -828,20 +869,161 @@ void renderVoice( int voice ) {
 
 
 
-static void renderVoices( void* param ) {
-  while(1) {
-    if( sidPlayer->getPositionInPlaylist() != positionInPlaylist ) {
-      positionInPlaylist = sidPlayer->getPositionInPlaylist();
-      spriteText.fillSprite(TFT_BLACK);
-      spriteText.setCursor(100, 0);
-      spriteText.setTextColor( TFT_BLACK, TFT_WHITE );
-      spriteText.printf("#%d", positionInPlaylist );
+void drawVolumeIcon( int16_t x, int16_t y, uint8_t volume )
+{
+  tft.startWrite();
+  tft.fillRect(x, y, 8, 8, C64_DARKBLUE );
+  for( uint8_t i=0;i<volume;i+=2 ) {
+    tft.drawLine( x+i/2, y+7, x+i/2, y+8-i/2, C64_LIGHTBLUE );
+  }
+  tft.endWrite();
+}
 
-      sprintf( fileName, "%s", sidPlayer->getName() );
-      spriteText.setCursor(0, 0);
-      spriteText.print( fileName );
+
+
+static void renderVoices( void* param = NULL ) {
+
+  SIDExplorer *mySIDExplorer = nullptr;
+
+  char filenumStr[32]  = {0};
+  char songNameStr[255] = {0};
+  stoprender = false;
+  int16_t textPosX = 0, textPosY = 0;
+  loopmode playerloopmode = MODE_SINGLE_TRACK;
+  uint8_t playerVolume = maxVolume;
+  bool force_redraw = false;
+  bool scrolltext = false;
+
+  if( param != NULL ) {
+    mySIDExplorer = (SIDExplorer *) param;
+    playerloopmode = mySIDExplorer->playerloopmode;
+  }
+
+  spriteText.setFont( &Font8x8C64 );
+  spriteText.setTextSize(1);
+
+
+  //auto elapsed = sidPlayer->song_duration - sidPlayer->delta_song_duration;
+  //auto progress = 100*elapsed/sidPlayer->song_duration;
+  int _lasprogress = 0;
+  uint8_t _lastsubsong = 0;
+
+  initSprites();
+
+  while(1) {
+    if( stoprender ) break;
+    if( render == false ) {
+      vTaskDelay( 10 );
+      continue;
+    }
+
+    // track progress
+    auto _elapsed = /*sidPlayer->song_duration -*/ sidPlayer->delta_song_duration;
+    auto _progress = (100*_elapsed) / sidPlayer->song_duration;
+
+
+    if( _lastsubsong != sidPlayer->currentsong ) {
+      _lastsubsong = sidPlayer->currentsong;
+      // TODO: render subsong
+    }
+
+    if( _lasprogress != _progress ) {
+      _lasprogress = _progress;
+      if( _progress > 0 ) {
+        char timeStr[12] = {0};
+
+        tft.setTextColor( C64_DARKBLUE, C64_MAROON );
+
+        tft.setTextDatum( TL_DATUM );
+        sprintf(timeStr, "%02d:%02d",
+          (_elapsed/60000)%60,
+          (_elapsed/1000)%60
+        );
+        tft.drawString( timeStr, 0, 4 );
+
+        tft.setTextDatum( TR_DATUM );
+        sprintf(timeStr, "%02d:%02d",
+          (sidPlayer->song_duration/60000)%60,
+          (sidPlayer->song_duration/1000)%60
+        );
+        tft.drawString( timeStr, tft.width(), 4 );
+
+        uint32_t len_light = (_progress*tft.width())/100;
+        uint32_t len_dark  = tft.width()-len_light;
+        tft.drawFastHLine( 0,         27, len_light, C64_MAROON );
+        tft.drawFastHLine( len_light, 27, len_dark,  C64_DARKBLUE );
+        tft.drawFastHLine( 0,         28, len_light, C64_MAROON_DARK );
+        tft.drawFastHLine( len_light, 28, len_dark,  C64_DARKBLUE );
+
+      } else {
+        tft.drawFastHLine( 0, 27, tft.width(), C64_DARKBLUE );
+      }
+    }
+    if( playerloopmode != mySIDExplorer->playerloopmode ) {
+      force_redraw = true;
+      playerloopmode = mySIDExplorer->playerloopmode;
+    }
+    if( playerVolume != maxVolume ) {
+      force_redraw = true;
+      playerVolume = maxVolume;
+    }
+    if( sidPlayer->getPositionInPlaylist() != positionInPlaylist ) {
+      force_redraw = true;
+      scrolltext = false;
+    }
+
+    if( scrolltext ) {
+      scrollableText.doscroll();
+    }
+
+    if( force_redraw ) {
+      force_redraw = false;
+
+      positionInPlaylist = sidPlayer->getPositionInPlaylist();
+      spriteText.fillSprite(C64_DARKBLUE);
+      spriteText.setTextColor( C64_DARKBLUE, C64_LIGHTBLUE );
+
+      snprintf( songNameStr, 255, " %s by %s (c) %s ", sidPlayer->getName(), sidPlayer->getAuthor(), sidPlayer->getPublished() );
+      sprintf( filenumStr, "#%d", positionInPlaylist );
+
+      if( mySIDExplorer != nullptr ) {
+        textPosX = 16;
+        textPosY = 0;
+        tft.drawJpg( (const uint8_t*)mySIDExplorer->loopmodeicon, mySIDExplorer->loopmodeicon_len, 0, 16 );
+        drawVolumeIcon( 8, 16, maxVolume );
+        uint16_t scrollwidth = tft.width();
+        scrollwidth/=8;
+        scrollwidth*=8;
+        if( scrollwidth < tft.textWidth( songNameStr ) ) {
+          //Serial.println("Reset scroll");
+          if( !scrolltext ) {
+            scrollableText.setup( songNameStr, 0, 32, scrollwidth, tft.fontHeight(), 300, true );
+            scrolltext = true;
+          }
+        } else {
+          scrolltext = false;
+        }
+        tft.setTextColor( C64_DARKBLUE, C64_LIGHTBLUE );
+        tft.setTextDatum( TR_DATUM );
+        tft.drawString( filenumStr, tft.width()-1, 16 );
+
+      } else {
+        textPosX = -3;
+        textPosY = 0;
+        spriteText.setTextDatum( TR_DATUM );
+        spriteText.drawString( filenumStr, spriteText.width()-1, textPosY );
+      }
+
+      if( !scrolltext ) {
+        spriteText.setTextDatum( TL_DATUM );
+        spriteText.drawString( songNameStr, textPosX, textPosY );
+      }
+
+
+
       spriteText.pushSprite(0,32);
-      Serial.printf("New track : %s\n", fileName );
+
+      //Serial.printf("New track : %s\n", songNameStr );
     }
 
     for( int voice=0; voice<3; voice++ ) {
@@ -850,45 +1032,26 @@ static void renderVoices( void* param ) {
     if( showFPS ) renderFPS();
     vTaskDelay(10);
   }
+  stoprender = false;
+  log_w("Task will self-delete");
+  deInitSprites();
+  vTaskDelete( NULL );
 }
 
 
+static void PlayerButtonsTask( void * param ) {
 
-void sidAddFolder( fs::FS &fs, const char* foldername, const char* filetype=".sid", bool recursive=false ) {
-  File root = fs.open( foldername );
-  if(!root){
-    Serial.printf("[ERROR] Failed to open %s directory\n", foldername);
-    return;
-  }
-  if(!root.isDirectory()){
-    Serial.printf("[ERROR] %s is not a directory\b", foldername);
-    return;
-  }
-  File file = root.openNextFile();
-  while(file){
-    if( file.isDirectory() || !String( file.name() ).endsWith( filetype ) ) {
-      if( recursive ) {
-        sidAddFolder( fs, file.name(), filetype, true );
-      } else {
-        Serial.printf("[INFO] Ignored [%s]\n", file.name() );
-      }
-    } else {
-      sidPlayer->addSong(fs, file.name() );
-      Serial.printf("[INFO] Added [%s] ( %d bytes )\n", file.name(), file.size() );
-    }
-    file = root.openNextFile();
-  }
-}
+  Wire.begin( SDA, SCL ); // connect XPadShield
 
-
-
-static void myLoop( void * param ) {
   while(1) {
-    if( webServerRunning ) {
-      //server.handleClient();
-      ArduinoOTA.handle();
-    }
+    #ifdef BOARD_HAS_PSRAM
+      if( webServerRunning ) {
+        //server.handleClient();
+        ArduinoOTA.handle();
+      }
+    #endif
 
+    // scan buttons from XPadShield
     Wire.requestFrom(0x10, 1);
     int resp = Wire.read();
 
@@ -905,25 +1068,40 @@ static void myLoop( void * param ) {
         break;
         case 0x04: // right
           Serial.println("sidPlayer->playNext() from button");
-          sidPlayer->playNext();
+          sidPlayer->playNextSong();
         break;
-        case 0x08: // leftheader_jpg
+        case 0x08: // left
           Serial.println("sidPlayer->stopPlayer() from button");
           sidPlayer->stopPlayer();
         break;
         case 0x10: // B
           Serial.println("sidPlayer->play() from button");
           sidPlayer->play();
+        break;
         case 0x20: // A
           Serial.println("sidPlayer->playNextSongInSid() from button");
           sidPlayer->playNextSongInSid();
+        break;
         case 0x40: // C
+          if( maxVolume > 0 ) {
+            maxVolume--;
+            sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
+            Serial.printf("New volume level: %d\n", maxVolume );
+          }
+        break;
         case 0x80: // D
-        default: // simultaneous buttons push
+          if( maxVolume < 15 ) {
+            maxVolume++;
+            sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
+            Serial.printf("New volume level: %d\n", maxVolume );
+          }
+        break;
+        default: // simultaneous buttons push ?
+          Serial.printf("Unhandled button combination: %X\n", resp );
         break;
 
       }
-      Serial.println(resp, HEX);
+      log_v("XPadButton response: %X", resp);
       lastresp = resp;
       lastpush = millis();
     } else if( lastEvent + SONG_TIMEOUT_MS < millis() ) {
@@ -937,104 +1115,431 @@ static void myLoop( void * param ) {
 }
 
 
-void sidCallback(  sidEvent event ) {
-  lastEvent = millis();
+uint8_t PlaylistChooser() {
 
-  switch( event ) {
-    case SID_NEW_TRACK:
-      Serial.printf( "[EVENT] New track: %s\n", sidPlayer->getFilename() );
-    break;
-    case SID_START_PLAY:
-      Serial.printf( "[EVENT] Start play: %s\n", sidPlayer->getFilename() );
-    break;
-    case SID_END_PLAY:
-      Serial.printf( "[EVENT] Stopping play: %s\n", sidPlayer->getFilename() );
-    break;
-    case SID_PAUSE_PLAY:
-      Serial.printf( "[EVENT] Pausing play: %s\n", sidPlayer->getFilename() );
-    break;
-    case SID_RESUME_PLAY:
-      Serial.printf( "[EVENT] Resume play: %s\n", sidPlayer->getFilename() );
-    break;
-    case SID_END_SONG:
-      Serial.println("[EVENT] End of track");
-    break;
+  if( totalsidpackages == 0 ) {
+    Serial.println("[ERROR] no SID packages are defined in SIDArchiveManager, halting system");
+    while(1);
+  }
+
+  // no need to show a picker if there's only one element
+  if(totalsidpackages == 1) return 0;
+
+  Wire.begin( SDA, SCL ); // connect XPadShield
+
+  PlaylistRenderer playlists[totalsidpackages];
+
+  int enabledId = 0;
+
+  for( uint8_t i=0; i<totalsidpackages; i++ ) {
+    playlists[i].name = HVSC[i].name;
+    playlists[i].index = i;
+    if( i==enabledId ) {
+      playlists[i].enabled = true;
+    } else {
+      playlists[i].enabled = false;
+    }
+    playlists[i].draw();
+  }
+
+  while(1) {
+
+    // scan buttons from XPadShield
+    Wire.requestFrom(0x10, 1);
+    int resp = Wire.read();
+
+    if( resp!=0 && ( lastresp != resp || lastpush + debounce < millis() ) ) {
+
+      playlists[enabledId].enabled = false;
+      playlists[enabledId].draw();
+
+      switch(resp) {
+        case 0x01: // down
+        case 0x04: // right
+          enabledId--;
+          if( enabledId < 0 ) enabledId = totalsidpackages-1;
+          playlists[enabledId].enabled = true;
+          playlists[enabledId].draw();
+        break;
+        case 0x08: // left
+        case 0x02: // up
+          enabledId++;
+          if( enabledId >= totalsidpackages ) enabledId = 0;
+          playlists[enabledId].enabled = true;
+          playlists[enabledId].draw();
+        break;
+        case 0x10: // B = select
+          return enabledId;
+        break;
+        default: // simultaneous buttons push ?
+          Serial.printf("Unhandled button combination: %X\n", resp );
+        break;
+      }
+
+      log_v("XPadButton response: %X", resp);
+      lastresp = resp;
+      lastpush = millis();
+    } else if( lastEvent + SONG_TIMEOUT_MS < millis() ) {
+      Serial.println("picked a playlist after timeout");
+      return enabledId;
+    }
+
+    vTaskDelay(100);
   }
 }
 
 
 
+
+
+
+void initSprites()
+{
+  spriteText.setPsram(false);
+
+  spriteVoices[0].setPsram(false);
+  spriteVoices[1].setPsram(false);
+  spriteVoices[2].setPsram(false);
+  spriteWaveforms[0].setPsram(false);
+  spriteWaveforms[1].setPsram(false);
+  spriteWaveforms[2].setPsram(false);
+
+  spriteIconNoise.setPsram(false);
+  spriteIconTriangle.setPsram(false);
+  spriteIconSawtooth.setPsram(false);
+  spriteIconPulse.setPsram(false);
+
+  /*
+  spriteWaveforms[0].setColorDepth(1);
+  spriteWaveforms[1].setColorDepth(1);
+  spriteWaveforms[2].setColorDepth(1);
+  */
+
+  spriteIconNoise.setColorDepth(8);
+  spriteIconTriangle.setColorDepth(8);
+  spriteIconSawtooth.setColorDepth(8);
+  spriteIconPulse.setColorDepth(8);
+
+  spriteIconNoise.createSprite( 16, 8 );
+  spriteIconTriangle.createSprite( 16, 8 );
+  spriteIconSawtooth.createSprite( 16, 8 );
+  spriteIconPulse.createSprite( 16, 8 );
+
+  spriteIconNoise.drawJpg( noise_jpg, noise_jpg_len, 0, 0 );
+  spriteIconTriangle.drawJpg( triangle_jpg, triangle_jpg_len, 0, 0 );
+  spriteIconSawtooth.drawJpg( sawtooth_jpg, sawtooth_jpg_len, 0, 0 );
+  spriteIconPulse.drawJpg( pulse_jpg, pulse_jpg_len, 0, 0 );
+
+  spriteText.createSprite( tft.width(), 8 );
+  spriteVoices[0].createSprite( VOICE_WIDTH, VOICE_HEIGHT );
+  spriteVoices[1].createSprite( VOICE_WIDTH, VOICE_HEIGHT );
+  spriteVoices[2].createSprite( VOICE_WIDTH, VOICE_HEIGHT );
+
+  spriteWaveforms[0].createSprite( (VOICE_WIDTH)-2, VOICE_HEIGHT-10 );
+  spriteWaveforms[1].createSprite( (VOICE_WIDTH)-2, VOICE_HEIGHT-10 );
+  spriteWaveforms[2].createSprite( (VOICE_WIDTH)-2, VOICE_HEIGHT-10 );
+}
+
+void deInitSprites()
+{
+  spriteText.deleteSprite();
+  spriteVoices[0].deleteSprite();
+  spriteVoices[1].deleteSprite();
+  spriteVoices[2].deleteSprite();
+  spriteWaveforms[0].deleteSprite();
+  spriteWaveforms[1].deleteSprite();
+  spriteWaveforms[2].deleteSprite();
+  spriteIconNoise.deleteSprite();
+  spriteIconTriangle.deleteSprite();
+  spriteIconSawtooth.deleteSprite();
+  spriteIconPulse.deleteSprite();
+}
+
+
+
+/*
+class sid_myinstrument : public sid_instrument {
+  public:
+    int i;
+    virtual void start_sample( int voice,int note ) {
+
+        sid.setAttack(   voice, 2 ); // 0
+        sid.setDecay(    voice, 0 ); // 2
+        sid.setSustain(  voice, 8 ); // 15
+        sid.setRelease(  voice, 2 ); // 10
+        sid.setPulse(    voice, 512 ); // 1000
+        sid.setWaveForm( voice, SID_WAVEFORM_PULSE ); // SID_WAVEFORM_PULSE
+        sid.setGate(     voice, 1 ); // 1
+        i=0;
+    }
+    virtual void next_instruction( int voice, int note ) {
+        //log_v(note+10*(cos(2*3.14*i/100)));
+        sid.setFrequency( voice, note+20*( 1+i/50 )*( cos( 2*3.14*i/10 ) ) );
+        //x
+        i++;
+        vTaskDelay(20);
+    }
+    virtual void after_off( int voice, int note ) {
+        sid.setFrequency( voice, note+20*( cos( 2*3.14*i/10 ) ) );
+        //x
+        i++;
+        vTaskDelay(20);
+    }
+};
+
+*/
+
+
+
+
+
+
 void setup() {
-    // put your setup code here, to run once:
+
     randomSeed(analogRead(0));
-    M5.begin();
-    tft.setRotation( 2 );
-    Wire.begin( SDA, SCL );
-    M5.I2C.scan();
-    SD.begin();
+    M5.begin(true, true); // begin both TFT and SD
+    tft.setRotation( 2 ); // portrait mode !
 
-    Serial.printf("Init display %d*%d\n", tft.width(), tft.height() );
+/*
+    checkMenuStickyPartition(); // copy self to SD Card as "/menu.bin" and OTA1 partition
+    setupButtonsStyle(); // set styles first (default it 320x240 landscape)
+    setAssertTrigger( &myAssertStartUpdateFromButton ); // use my own buttons combination at boot
+    checkSDUpdater( SID_FS, MENU_BIN, 1000 ); // suggest rollback
+*/
+    //M5.I2C.scan();
+    Serial.printf("SID Player UI: %d*%d\n", tft.width(), tft.height() );
+    //initSprites();
 
-    VOICE_HEIGHT = (128/*tft.height()*/ - HEADER_HEIGHT) /3; // 29 // ( tft.height() - HEADER_HEIGHT ) / 3
-    VOICE_WIDTH = 64; // tft.width() / 2
+    delay( 1000 ); // SD Fails sometimes without this
 
-    tft.setBrightness( 2 ); // avoid brownout
+    tft.fillScreen( C64_DARKBLUE ); // Commodore64 blueish
+    tft.drawJpg( header128x32_jpg, header128x32_jpg_len, 0, 0 );
 
-    /*
-    stubbornConnect();
-    tft.setCursor(0, 0);
-    tft.print( WiFi.localIP() );
-    tft.setCursor(0, 16);
-    tft.setTextSize(1);
-    tft.print("http://esp32-sid6581.local");
+    VOICE_HEIGHT = ( tft.height() - HEADER_HEIGHT) / 3; // 29 // ( tft.height() - HEADER_HEIGHT ) / 3
+    VOICE_WIDTH  = tft.width() / 2;
+
+    SIDExplorer *mySIDExplorer = new SIDExplorer( SID_FS, HVSC, totalsidpackages );
+    mySIDExplorer->explore();
+
+    //int itemId = SIDExplorer( SID_FS, HVSC, totalsidpackages );
+/*
+    if( itemId >= -1 ) {
+      if( myFolder[itemId].type == F_SID_FILE ) {
+        // just play one song TODO: enable subsong toggle
+        sidPlayer = new SIDTunesPlayer( 1 );
+        sidPlayer->setEventCallback( sidCallback );
+        sidPlayer->setLoopMode( MODE_LOOP_PLAYLIST_RANDOM );
+        //sidPlayer->begin(SID_CLOCK,SID_DATA,SID_LATCH); //if you have an external clock circuit
+        sidPlayer->begin( SID_CLOCK, SID_DATA, SID_LATCH, SID_CLOCK_PIN ); //(if you do not have a external clock cicuit)
+        sidPlayer->addSong( SID_FS, myFolder[itemId].path.c_str() );
+        sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
+        sidPlayer->play(); //it will play all songs in loop
+
+      } else if( myFolder[itemId].type == F_FOLDER ) {
+        myFolder[itemId].path.c_str();
+      } else {
+        // duh ?
+      }
+    }
     */
 
-    Serial.printf("Supported waveforms: %d, %d, %d, %d\n", SID_WAVEFORM_TRIANGLE, SID_WAVEFORM_SAWTOOTH, SID_WAVEFORM_SQUARE, SID_WAVEFORM_NOISE );
+    Serial.printf("Supported waveforms: %d, %d, %d, %d\n", SID_WAVEFORM_TRIANGLE, SID_WAVEFORM_SAWTOOTH, SID_WAVEFORM_PULSE, SID_WAVEFORM_NOISE );
 
-    tft.setBrightness( 255 );
+    while(1);
+    /*
+    const char* songpath = "/sid/DEMOS/UNKNOWN/Music_Shop/Absch_L_F_A_Leut.sid";
+    songstruct *songinfo = (songstruct*)ps_calloc(1, sizeof(songstruct));
 
-    tft.fillScreen( TFT_BLUE );
-    tft.drawJpg( header_jpg, header_jpg_len, 0, 0 );
+    if( !getInfoFromSIDFile(SID_FS, songpath, songinfo) ) {
+      Serial.println("FAILED");
+    } else {
+      Serial.println("OK");
+      songinfo->durations = (uint32_t*)sid_calloc( 1, songinfo->subsongs*sizeof(uint32_t) );
+      songdebug( songinfo );
+    }
 
-    //tft.setBrightness( 64 );
+    while(1);
+    */
 
-    sidPlayer = new SIDTunesPlayer();
-    sidPlayer->setEventCallback( sidCallback );
-    sidPlayer->begin(SID_CLOCK,SID_DATA,SID_LATCH); //if you have an external clock circuit
-    //sidPlayer->begin( SID_CLOCK, SID_DATA, SID_LATCH, SID_CLOCK_PIN ); //(if you do not have a external clock cicuit)
+/*
+    //const char* songpath = "/sid/GAMES/A-F/Caveman_Ugh-Lympics.sid";
+    const char* songpath = "/DEMOS/UNKNOWN/Music_Baby_tune_2.sid";
+    songstruct *songinfo = (songstruct*)ps_calloc(1, sizeof(songstruct));
 
-    sidAddFolder( SD, "/sid", ".sid", true );
+    if( !getInfoFromSIDFile(SID_FS, songpath, songinfo) ) {
+      Serial.println("FAILED");
+    } else {
+      uint8_t randomwidth = songinfo->subsongs;
+      Serial.println("OK");
+      songinfo->durations = (uint32_t*)sid_calloc( 1, songinfo->subsongs*sizeof(uint32_t) );
+      songdebug( songinfo );
 
-    sidPlayer->SetMaxVolume(7); //value between 0 and 15
+      SongCache->init( songpath );
+      SID_FS.remove( SongCache->cachepath );
+
+      sprintf( (char*)songinfo->name, "%s", "BLAH" );
+      songinfo->subsongs = rand()%randomwidth;
+      SongCache->add( SID_FS, songpath, songinfo ); // create
+
+      sprintf( (char*)songinfo->name, "%s", "BLEB" );
+      songinfo->subsongs = rand()%randomwidth;
+      SongCache->add( SID_FS, songpath, songinfo ); // insert
+
+      sprintf( (char*)songinfo->name, "%s", "Caveman Ugh-Lympics" );
+      songinfo->subsongs = randomwidth;
+      SongCache->add( SID_FS, songpath, songinfo ); // insert
+
+      sprintf( (char*)songinfo->name, "%s", "PLOP" );
+      songinfo->subsongs = rand()%randomwidth;
+      SongCache->add( SID_FS, songpath, songinfo ); // insert
+
+
+      sprintf( (char*)songinfo->name, "%s", "Caveman Ugh-Lympics" );
+      SongCache->add( SID_FS, songpath, songinfo ); // cache hit
+
+      sprintf( (char*)songinfo->name, "%s", "BLEB" );
+      SongCache->add( SID_FS, songpath, songinfo ); // cache hit
+
+      sprintf( (char*)songinfo->name, "%s", "BLAH" );
+      SongCache->add( SID_FS, songpath, songinfo ); // cache hit
+
+      sprintf( (char*)songinfo->name, "%s", "PLOP" );
+      SongCache->add( SID_FS, songpath, songinfo ); // cache hit
+
+
+      SID_FS.remove( SongCache->cachepath ); // cleanup
+    }
+
+    while(1);
+*/
+
+    //createCacheFromMd5( SID_FS, SID_FOLDER, MD5_FILE ); // with durations (slower)
+    //createCacheFromFolder( SID_FS, SID_FOLDER "/GAMES", ".sid", true ); // without durations
+
+    while(1);
+
+    //SongCache->init("/sid/MUSICIANS/X/Xonic_the_Fox/Ohne_Dich_Rammstein.sid");
+
+/*
+    #ifdef BOARD_HAS_PSRAM
+*/
+      /*
+      // ENABLE OTA
+      OTASetup();
+      Serial.println("OTA READY");
+      webServerRunning = true; // TODO: add means to start/stop WiFi+WebServer
+
+      tft.setCursor(0, 16);
+      tft.setTextSize(1);
+      tft.print("http://esp32-sid6581.local");
+      */
+
+      // first pass, download all things
+      for( int i=0; i<totalsidpackages; i++ ) {
+        if( !HVSC[i].exists() ) {
+          if( !HVSC[i].download() ) {
+            Serial.printf("Downloading of %s failed, deleting damaged or empty file\n", HVSC[i].tgzFileName );
+            SID_FS.remove( HVSC[i].tgzFileName );
+          }
+        }
+      }
+
+      // also download the MD5 checksums file containing song lengths
+      if( ! SID_FS.exists( MD5_FILE ) ) {
+        if( !wifiConnected ) stubbornConnect();
+        if( !wget( MD5_URL, SID_FS, MD5_FILE ) ) {
+          Serial.printf("Failed to download Songlengths.full.md5 :-(");
+        } else {
+          Serial.printf("Downloaded song lengths successfully");
+        }
+      }
+
+      // now turn off wifi as it ate more than 80Kb ram
+      if( wifiConnected ) wifiOff();
+
+      // expand archives
+      for( int i=0; i<totalsidpackages; i++ ) {
+        if( HVSC[i].exists() ) {
+          if( !HVSC[i].isExpanded() ) {
+            if( !HVSC[i].expand() ) {
+              Serial.printf("Expansion of %s failed, please delete the %s folder and %s archive manually\n", HVSC[i].name, HVSC[i].sidRealPath, HVSC[i].tgzFileName );
+            }
+          } else {
+            Serial.printf("Archive %s looks healthy\n", HVSC[i].name );
+          }
+        } else {
+          Serial.printf("Archive %s is missing\n", HVSC[i].name );
+        }
+      }
+
+      // create cache files
+      for( int i=0; i<totalsidpackages; i++ ) {
+        if( HVSC[i].exists() && HVSC[i].isExpanded() && !HVSC[i].hasCache() ) {
+          Serial.printf("Cache file %s is missing, will rebuild\n", HVSC[i].cachePath );
+          if( ! HVSC[i].createAllCacheFiles( 4096 ) ) {
+            SID_FS.remove( HVSC[i].cachePath );
+            Serial.println("Halted");
+            while(1);
+          }
+        }
+      }
+
+      tft.setBrightness( 32 );
+
+
+      uint8_t chosenPlaylist = PlaylistChooser();
+
+
+      tft.fillScreen( C64_DARKBLUE ); // Commodore64 blueish
+      tft.drawJpg( header128x32_jpg, header128x32_jpg_len, 0, 0 );
+
+      //tft.setBrightness( 64 );
+      sidPlayer = new SIDTunesPlayer( 4096 );
+      sidPlayer->setEventCallback( sidCallback );
+      sidPlayer->setLoopMode( MODE_LOOP_PLAYLIST_RANDOM );
+      //sidPlayer->begin(SID_CLOCK,SID_DATA,SID_LATCH); //if you have an external clock circuit
+      sidPlayer->begin( SID_CLOCK, SID_DATA, SID_LATCH, SID_CLOCK_PIN ); //(if you do not have a external clock cicuit)
+      if( !SongCache->loadCache( sidPlayer, HVSC[chosenPlaylist].cachePath ) ) {
+        sidPlayer->addSongsFromFolder( SID_FS, "/sid", ".sid", true );
+      } else {
+        // custom player
+      }
+
+      /*
+    #else
+
+      tft.setBrightness( 32 );
+
+      tft.fillScreen( TFT_BLUE );
+      tft.drawJpg( header_jpg, header_jpg_len, 0, 0 );
+
+      //tft.setBrightness( 64 );
+      sidPlayer = new SIDTunesPlayer();
+      sidPlayer->setEventCallback( sidCallback );
+      sidPlayer->setLoopMode( MODE_LOOP_PLAYLIST_RANDOM );
+      //sidPlayer->begin(SID_CLOCK,SID_DATA,SID_LATCH); //if you have an external clock circuit
+      sidPlayer->begin( SID_CLOCK, SID_DATA, SID_LATCH, SID_CLOCK_PIN ); //(if you do not have a external clock cicuit)
+      sidPlayer->addSongsFromFolder( SID_FS, "/sid", ".sid", true );
+      //sidPlayer->getSongslengthfromMd5( SD,"/md5/soundlength.md5" );
+
+    #endif
+*/
+
+
+
+    sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
+
+    Serial.printf( "[Songs in playlist:%d (ignored:%d)][Free heap: %d]\n", sidPlayer->numberOfSongs, sidPlayer->ignoredSongs, ESP.getFreeHeap() );
 
     sidPlayer->play(); //it will play all songs in loop
 
-    spriteText.setPsram(false);
-    spriteVoices[0].setPsram(false);
-    spriteVoices[1].setPsram(false);
-    spriteVoices[2].setPsram(false);
-    spriteWaveforms[0].setPsram(false);
-    spriteWaveforms[1].setPsram(false);
-    spriteWaveforms[2].setPsram(false);
-    /*
-    spriteWaveforms[0].setColorDepth(1);
-    spriteWaveforms[1].setColorDepth(1);
-    spriteWaveforms[2].setColorDepth(1);
-    */
-    spriteText.createSprite( 128, 8 );
-    spriteVoices[0].createSprite( VOICE_WIDTH, VOICE_HEIGHT );
-    spriteVoices[1].createSprite( VOICE_WIDTH, VOICE_HEIGHT );
-    spriteVoices[2].createSprite( VOICE_WIDTH, VOICE_HEIGHT );
-
-    spriteWaveforms[0].createSprite( (VOICE_WIDTH)-2, VOICE_HEIGHT-10 );
-    spriteWaveforms[1].createSprite( (VOICE_WIDTH)-2, VOICE_HEIGHT-10 );
-    spriteWaveforms[2].createSprite( (VOICE_WIDTH)-2, VOICE_HEIGHT-10 );
-
-    xTaskCreatePinnedToCore( myLoop, "myLoop", 4096, NULL, 1, NULL, 1);
-    xTaskCreatePinnedToCore( renderVoices, "renderVoices", 4096, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore( PlayerButtonsTask, "PlayerButtonsTask", 4096, NULL, 1, NULL, SID_PLAYER_CORE ); // will trigger SD reads
+    xTaskCreatePinnedToCore( renderVoices, "renderVoices", 8192, NULL, 1, NULL, SID_CPU_CORE ); // will trigger TFT writes
 
 }
 
 void loop() {
   vTaskDelete( NULL );
 }
+
+#pragma GCC diagnostic pop

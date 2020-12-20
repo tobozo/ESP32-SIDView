@@ -1,4 +1,16 @@
+
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+HTTPClient http;
+
 bool webServerRunning = false;
+bool wifiConnected = false;
 
 /*\
  * Because ESP32 WiFi can't reconnect by itself (bug)
@@ -57,11 +69,11 @@ void OTASetup() {
 
 void stubbornConnect() {
   uint8_t wifi_retry_count = 0;
-  uint8_t max_retries = 3;
+  uint8_t max_retries = 10;
   unsigned long stubbornness_factor = 3000; // ms to wait between attempts
 
   #ifdef ESP32
-    while (WiFi.status() != WL_CONNECTED && wifi_retry_count < 3)
+    while (WiFi.status() != WL_CONNECTED && wifi_retry_count < max_retries)
   #else
     while (WiFi.waitForConnectResult() != WL_CONNECTED && wifi_retry_count < max_retries)
   #endif
@@ -73,7 +85,7 @@ void stubbornConnect() {
     wifi_retry_count++;
   }
 
-  if(wifi_retry_count >= 3) {
+  if(wifi_retry_count >= max_retries ) {
     Serial.println("no connection, forcing restart");
     ESP.restart();
   }
@@ -81,28 +93,115 @@ void stubbornConnect() {
   if (WiFi.waitForConnectResult() == WL_CONNECTED){
     Serial.println("Connected as");
     Serial.println(WiFi.localIP());
+    wifiConnected = true;
   }
-
-/*
-  if (MDNS.begin("esp32-msgeq7")) {
-    Serial.println("MDNS responder started: esp32-msgeq7.local");
-    tft.setCursor(0, 0);
-    tft.print( WiFi.localIP() );
-    tft.setCursor(0, 16);
-    tft.print("http://esp32-msgeq7.local");
-  }
-*/
-  //server.begin();
-  OTASetup();
-  Serial.println("HTTP server started");
-  webServerRunning = true; // TODO: add means to start/stop WiFi+WebServer
 
 }
 
 
 void wifiOff() {
   WiFi.mode( WIFI_OFF );
+  wifiConnected = false;
   //tft.fillRect(0, 0, TFT_WIDTH, 32, TFT_BLACK );
+}
+
+
+
+static void (*PrintProgressBar)( float progress, float max );
+
+
+static bool /*yolo*/wget( const char* url, fs::FS &fs, const char* path )
+{
+  WiFiClientSecure *client = new WiFiClientSecure;
+  client->setCACert( NULL ); // yolo security
+
+  const char* UserAgent = "ESP32HTTPClient";
+
+  http.setUserAgent( UserAgent );
+  http.setConnectTimeout( 10000 ); // 10s timeout = 10000
+
+  if( ! http.begin(*client, url ) ) {
+    log_e("Can't open url %s", url );
+    return false;
+  }
+
+  const char * headerKeys[] = {"location", "redirect"};
+  const size_t numberOfHeaders = 2;
+  http.collectHeaders(headerKeys, numberOfHeaders);
+
+  log_w("URL = %s", url);
+
+  int httpCode = http.GET();
+
+  // file found at server
+  if (httpCode == HTTP_CODE_FOUND || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+    String newlocation = "";
+    for(int i = 0; i< http.headers(); i++) {
+      String headerContent = http.header(i);
+      if( headerContent !="" ) {
+        newlocation = headerContent;
+        Serial.printf("%s: %s\n", headerKeys[i], headerContent.c_str());
+      }
+    }
+
+    http.end();
+    if( newlocation != "" ) {
+      log_w("Found 302/301 location header: %s", newlocation.c_str() );
+      return wget( newlocation.c_str(), fs, path );
+    } else {
+      log_e("Empty redirect !!");
+      return false;
+    }
+  }
+
+  WiFiClient *stream = http.getStreamPtr();
+
+  if( stream == nullptr ) {
+    http.end();
+    log_e("Connection failed!");
+    return false;
+  }
+
+  File outFile = fs.open( path, FILE_WRITE );
+  if( ! outFile ) {
+    log_e("Can't open %s file to save url %s", path, url );
+    return false;
+  }
+
+  //uint8_t buff[4096] = { 0 };
+  //size_t sizeOfBuff = sizeof(buff);
+  size_t sizeOfBuff = 4096;
+  uint8_t *buff = new uint8_t[sizeOfBuff];//
+
+  int len = http.getSize();
+  int bytesLeftToDownload = len;
+  int bytesDownloaded = 0;
+
+  //UI.PrintMessage("Download in progress...");
+
+  while(http.connected() && (len > 0 || len == -1)) {
+    size_t size = stream->available();
+    if(size) {
+      // read up to 512 byte
+      int c = stream->readBytes(buff, ((size > sizeOfBuff) ? sizeOfBuff : size));
+      outFile.write( buff, c );
+      bytesLeftToDownload -= c;
+      bytesDownloaded += c;
+      if( bytesLeftToDownload == 0 ) break;
+      float progress = (((float)bytesDownloaded / (float)len) * 100.00);
+      if( PrintProgressBar ) {
+        PrintProgressBar( progress, 100.0 );
+        //log_w("%d bytes left", bytesLeftToDownload );
+      }
+    }
+  }
+  if( PrintProgressBar ) {
+    PrintProgressBar( 100.0, 100.0 );
+  }
+  outFile.close();
+  delete buff;
+  delete client;
+  return fs.exists( path );
 }
 
 
