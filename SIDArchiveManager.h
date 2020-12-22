@@ -9,7 +9,8 @@
 //#define SID_FS SPIFFS // deprecated
 #define SID_FS       SD // filesystem (SD strongly recommended)
 #define SID_FOLDER   "/sid" // local path, NO TRAILING SLASH, MUST BE A FOLDER
-#define MD5_FILE     "/md5/Songlengths.full.md5" // local path
+#define MD5_FOLDER   "/md5" // where all the md5 stuff is stored
+#define MD5_FILE     MD5_FOLDER "/Songlengths.full.md5" // local path
 #define MD5_FILE_IDX MD5_FILE ".idx"
 #define MD5_URL      "https://www.prg.dtu.dk/HVSC/C64Music/DOCUMENTS/Songlengths.md5" // remote url
 
@@ -18,9 +19,17 @@
 #include <ESP32-targz.h>
 #include "SIDCacheManager.h"
 
-
-
-MD5FileConfig MD5Config = { &SID_FS, SID_FOLDER, MD5_FILE, MD5_FILE_IDX, MD5_URL };
+MD5FileConfig MD5Config =
+{
+  &SID_FS,          // SD
+  SID_FOLDER,       // /sid
+  MD5_FOLDER,       // /md5
+  MD5_FILE,         // /md5/Songlengths.full.md5
+  MD5_FILE_IDX,     // /md5/Songlengths.full.md5.idx
+  MD5_URL,          // https://www.prg.dtu.dk/HVSC/C64Music/DOCUMENTS/Songlengths.md5
+  MD5_RAINBOW_LOOKUP, // MD5_RAW_READ, MD5_INDEX_LOOKUP, MD5_RAINBOW_LOOKUP
+  nullptr           // callback function for progress when the init happens
+};
 //MD5FileParser *MD5Parser = new MD5FileParser( &MD5Config );
 
 int lastresp = -1;
@@ -77,7 +86,7 @@ static void UIPrintProgressBar( float progress, float total=100.0 )
   if( (uint8_t)progress != lastprogress ) {
     lastprogress = (uint8_t)progress;
     char progressStr[64] = {0};
-    sprintf( progressStr, "Progress: %3d%s", int(progress), "%" );
+    snprintf( progressStr, 64, "Progress: %3d%s", int(progress), "%" );
     tft.setTextDatum( MC_DATUM );
     tft.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
     tft.drawString( progressStr, tft.width()/2, tft.height()/2 );
@@ -92,10 +101,11 @@ static void UIPrintGzProgressBar( uint8_t progress )
 
 static void UIPrintTarProgress(const char* format, ...)
 {
-  char buffer[256];
+  //char buffer[256];
+  char *buffer = (char *)sid_calloc( 256, sizeof(char) );
   va_list args;
   va_start(args, format);
-  vsprintf(buffer, format, args);
+  vsnprintf(buffer, 255, format, args);
   va_end(args);
   //Serial.println(buffer);
   tft.setTextDatum( MC_DATUM );
@@ -103,6 +113,7 @@ static void UIPrintTarProgress(const char* format, ...)
   int yPos = (tft.height()/2 - tft.fontHeight()*2) + 2;
   tft.fillRect( 0, yPos - tft.fontHeight()/2, tft.width(), tft.fontHeight()+1, C64_DARKBLUE );
   tft.drawString( buffer, tft.width()/2, yPos );
+  free( buffer );
 }
 
 
@@ -114,15 +125,32 @@ struct SID_Archive
   const char* url; // url to the gzip file
   const char* path; // corresponding absolute path in the md5 file
   MD5FileConfig *cfg;
-  char tgzFileName[255] = {0};
-  char sidRealPath[255] = {0};
-  char cachePath[255]   = {0};
+
+  char *tgzFileName;
+  char *sidRealPath;
+  char *cachePath;
+
+  ~SID_Archive() {
+    free( tgzFileName );
+    free( sidRealPath );
+    free( cachePath   );
+  }
 
   SID_Archive( const char* n, const char* u, const char* p, MD5FileConfig *c) : name(n), url(u), path(p), cfg(c)
   {
-    sprintf( tgzFileName, "/%s.tar.gz", name );
-    sprintf( sidRealPath, "%s%s", cfg->sidfolder, path );
-    sprintf( cachePath,   "/tmp/%s.sidcache", name );
+    #ifdef BOARD_HAS_PSRAM
+      psramInit();
+    #endif
+    tgzFileName = (char*)sid_calloc( 256, sizeof( char ) );
+    sidRealPath = (char*)sid_calloc( 256, sizeof( char ) );
+    cachePath   = (char*)sid_calloc( 256, sizeof( char ) );
+    if( tgzFileName == NULL || sidRealPath == NULL  || cachePath   == NULL ) {
+      log_e("Unable to init SID_Archive, aborting !");
+      return;
+    }
+    snprintf( tgzFileName, 256, "/%s.tar.gz", name );
+    snprintf( sidRealPath, 256, "%s%s", cfg->sidfolder, path );
+    snprintf( cachePath,   256, "/tmp/%s.sidcache", name );
     PrintProgressBar = &UIPrintProgressBar;
   };
 
@@ -230,6 +258,7 @@ struct SID_Archive
     //cfg->fs->remove("/tmp/sidsongs.cache" );
   }
 */
+/*
   // recursively create cache files, this is a very long process
   bool createAllCacheFiles( size_t maxSongs )
   {
@@ -284,7 +313,7 @@ struct SID_Archive
     delete sidPlayer;
     sidPlayer = NULL;
   }
-
+*/
 };
 
 

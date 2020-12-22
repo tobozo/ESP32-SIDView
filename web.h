@@ -4,7 +4,7 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
-#include <ArduinoOTA.h>
+//#include <ArduinoOTA.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 HTTPClient http;
@@ -12,10 +12,7 @@ HTTPClient http;
 bool webServerRunning = false;
 bool wifiConnected = false;
 
-/*\
- * Because ESP32 WiFi can't reconnect by itself (bug)
-\*/
-
+/*
 void OTASetup() {
 
   // Port defaults to 3232
@@ -56,18 +53,20 @@ void OTASetup() {
   ArduinoOTA.begin();
 
   Serial.println("MDNS responder started: esp32-msgeq7.local");
-  /*
-  tft.setCursor(0, 0);
-  tft.print( WiFi.localIP() );
-  tft.setCursor(0, 16);
-  tft.setTextSize(1);
-  tft.print("http://esp32-sid6581.local");
-  */
 
+  //   tft.setCursor(0, 0);
+  //   tft.print( WiFi.localIP() );
+  //   tft.setCursor(0, 16);
+  //   tft.setTextSize(1);
+  //   tft.print("http://esp32-sid6581.local");
 }
+*/
 
-
-void stubbornConnect() {
+/*\
+ * Because ESP32 WiFi can't reconnect by itself (bug)
+\*/
+void stubbornConnect()
+{
   uint8_t wifi_retry_count = 0;
   uint8_t max_retries = 10;
   unsigned long stubbornness_factor = 3000; // ms to wait between attempts
@@ -99,7 +98,8 @@ void stubbornConnect() {
 }
 
 
-void wifiOff() {
+void wifiOff()
+{
   WiFi.mode( WIFI_OFF );
   wifiConnected = false;
   //tft.fillRect(0, 0, TFT_WIDTH, 32, TFT_BLACK );

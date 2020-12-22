@@ -48,30 +48,37 @@ bool getInfoFromSIDFile(fs::FS &fs, const char * path, songstruct * songinfo)
   bool playable = true;
 
   if( preferred_SID_model[0]!= 6581 || preferred_SID_model[1]!= 6581 || preferred_SID_model[2]!= 6581 ) {
-    log_d("Unsupported SID Model:  0: %d  1: %d  2: %d  in file %s",
+    log_d("Unsupported SID Model?:  0: %d  1: %d  2: %d  in file %s",
       preferred_SID_model[0],
       preferred_SID_model[1],
       preferred_SID_model[2],
       path
     );
-    playable = false;
+    // playable = false;
   }
   // don't lose time calculating hash for unplayable file
   if( playable ) {
-    // don't lose time calculating hash twice
+    // procrastinate md5 de-hashing
+    /*
     if( strcmp( songinfo->md5, "00000000000000000000000000000000" ) == 0 ) {
-      sprintf( songinfo->md5,"%s", Sid_md5::calcMd5( file ) );
+      snprintf( songinfo->md5, 33, "%s", Sid_md5::calcMd5( file ) );
     }
+    */
   }
 
   file.close();
 
   if( sidPlayer->MD5Parser != NULL ) {
-
     if( songinfo->durations != nullptr ) free( songinfo->durations );
     songinfo->durations = (uint32_t*)sid_calloc( songinfo->subsongs, sizeof(uint32_t) );
-
-    sidPlayer->MD5Parser->getDurationsFromSIDPath( songinfo );
+    if( !sidPlayer->MD5Parser->getDurationsFromSIDPath( songinfo ) ) {
+      /*
+      if( strcmp( songinfo->md5, "00000000000000000000000000000000" ) == 0 ) {
+        snprintf( songinfo->md5, 33, "%s", Sid_md5::calcMd5( file ) );
+      }
+      sidPlayer->MD5Parser->getDurationsFromMD5Hash( songinfo );
+      */
+    }
   }
 
   return playable;
@@ -117,10 +124,28 @@ struct SongCacheManager
 {
   public:
 
-    char basename[255];
-    char basepath[255];
-    char cachepath[255];
-    char md5path[255];
+    char *basename;
+    char *basepath;
+    char *cachepath;
+    char *md5path;
+
+    ~SongCacheManager() {
+      free( basename  );
+      free( basepath  );
+      free( cachepath );
+      free( md5path   );
+    }
+
+    SongCacheManager() {
+      #ifdef BOARD_HAS_PSRAM
+        psramInit();
+      #endif
+      basename  = (char*)sid_calloc( 256, sizeof(char) );
+      basepath  = (char*)sid_calloc( 256, sizeof(char) );
+      cachepath = (char*)sid_calloc( 256, sizeof(char) );
+      md5path   = (char*)sid_calloc( 256, sizeof(char) );
+    }
+
 
     void init( const char* path )
     {
@@ -138,13 +163,86 @@ struct SongCacheManager
       String bname = gnu_basename( path );
       strcpy( basename, bname.c_str() );
       memmove( basepath, path, strlen(path)-strlen(basename) ); // remove filename from path
-      sprintf( cachepath, "%s%s", basepath, ".sidcache" );
+      snprintf( cachepath, 255, "%s%s", basepath, ".sidcache" );
       if( String(path).startsWith( SID_FOLDER ) ) {
         memmove( md5path, path+strlen( SID_FOLDER ), strlen(path) ); // remove leading SID_FOLDER from path
       } else {
         strcpy( md5path, path );
       }
       log_v("\nComputed from %s:\n- basename: %s\n- basepath: %s\n- cachepath: %s\n- md5path: %s\n", path, basename, basepath, cachepath, md5path );
+    }
+
+
+    String makeCachePath( const char* path, const char* cachename )
+    {
+      if( path == NULL || path[0] == '\0' ) {
+        log_e("Bad path");
+        return "";
+      }
+      if( cachename == NULL || cachename[0] == '\0' ) {
+        log_e("Bad cachename");
+        return "";
+      }
+      String cleanPath;
+      cleanPath.reserve(256);
+      if( path[strlen(path)-1] == '/' ) {
+        cleanPath = String(path) + String(cachename);
+      } else {
+        cleanPath = String(path) + "/" + String(cachename);
+      }
+      log_d("Generated path %s from %s and %s", cleanPath.c_str(), path, cachename );
+      return cleanPath;
+    }
+
+
+    String playListCachePath( const char * path )
+    {
+      return makeCachePath( path, ".sidcache");
+    }
+
+
+    String dirCachePath( const char * path )
+    {
+      return makeCachePath( path, ".dircache");
+    }
+
+
+    bool folderHasPlaylist( fs::FS &fs, const char* fname )
+    {
+      return fs.exists( playListCachePath( fname ) );
+    }
+
+
+    bool folderHasCache( fs::FS &fs, const char* fname )
+    {
+      return fs.exists( dirCachePath( fname ) );
+    }
+
+
+    bool purge( fs::FS &fs,  const char * path )
+    {
+      if( path == NULL || path[0] == '\0' ) {
+        log_e("Bad path name");
+        return false;
+      }
+      log_w("Will purge path %s", path );
+
+      String songCachePath = playListCachePath( path );
+      String dirCacheFile  = dirCachePath( path );
+      log_w("Speculated %s and %s from %s", songCachePath.c_str(), dirCacheFile.c_str(), path );
+      if( fs.exists( songCachePath ) ) {
+        log_e("Removing %s", songCachePath.c_str() );
+        fs.remove( songCachePath );
+      } else {
+        log_e("No %s (playlist) file to purge", songCachePath.c_str() );
+      }
+      if( fs.exists( dirCacheFile ) ) {
+        log_e("Removing %s", dirCacheFile.c_str() );
+        fs.remove( dirCacheFile );
+      } else {
+        log_e("No %s (dircache) file to purge", dirCacheFile.c_str() );
+      }
+      return true;
     }
 
 
@@ -165,7 +263,7 @@ struct SongCacheManager
     }
 
 
-    int addSong(fs::FS &fs,  const char * path/*, uint32_t *durations = nullptr, const char* md5hash = nullptr*/ )
+    int addSong(fs::FS &fs,  const char * path )
     {
       static songstruct * song = nullptr;
 
@@ -181,7 +279,7 @@ struct SongCacheManager
 
       song->fs = &fs;
 
-      sprintf(song->filename,"%s", path );
+      snprintf(song->filename, 255, "%s", path );
 
       if( getInfoFromSIDFile( fs, path, song ) ) {
         if( add( fs, path, song ) ) {
@@ -201,7 +299,7 @@ struct SongCacheManager
     bool update( fs::FS &fs, const char* path, songstruct *song )
     {
       init( path );
-      sprintf( song->filename, "%s", md5path ); // don't use the full path
+      snprintf( song->filename, 255, "%s", md5path ); // don't use the full path
       fs::File cacheFile = fs.open( cachepath, "r+" );
       if( ! cacheFile ) return false;
       bool ret = false;
@@ -228,9 +326,10 @@ struct SongCacheManager
 
     bool get( fs::FS &fs, const char* md5path, songstruct *song )
     {
-      char fullpath[255] = {0};
-      sprintf( fullpath, "%s/%s", SID_FOLDER, md5path );
+      char *fullpath = (char*)sid_calloc( 256, sizeof(char) );
+      snprintf( fullpath, 255, "%s/%s", SID_FOLDER, md5path );
       init( fullpath );
+      free( fullpath );
       bool ret = false;
       fs::File cacheFile = fs.open( cachepath, FILE_READ );
       if( ! cacheFile ) return false;
@@ -253,17 +352,138 @@ struct SongCacheManager
     }
 
 
-    bool folderHasCache( fs::FS &fs, const char* fname )
+    bool scanFolderCache( fs::FS &fs, const char* pathname, folderElementPrintCb printCb )
     {
-      if( fname[strlen(fname)-1] == '/' ) {
-        return fs.exists( String(fname) + String(".sidcache") );
+      String dirCacheFile = dirCachePath( pathname );
+      if( dirCacheFile == "" ) {
+        log_e("Bad dirCache filename");
+        return false;
       }
-      return fs.exists( String(fname) + String("/.sidcache") );
+      if( ! fs.exists( dirCacheFile ) ) {
+        log_e("Cache file %s does not exist, create it first !", dirCacheFile.c_str() );
+      }
+      fs::File DirCache = fs.open( dirCacheFile );
+      if( !DirCache ) {
+        log_e("Unable to access dirCacheFile %s", dirCacheFile.c_str() );
+        return false;
+      }
+      while( DirCache.available() ) {
+        uint8_t typeint = DirCache.read();
+        switch( typeint )
+        {
+          case F_FOLDER:            // SID file list for current folder
+          case F_SUBFOLDER:         // subfolder with SID file list
+          case F_SUBFOLDER_NOCACHE: // subfolder with no SID file list
+          case F_PARENT_FOLDER:     // parent folder
+          case F_SID_FILE:           // single SID file
+          break;
+          default: // EOF ?
+            goto _end;
+        }
+        FolderItemType type = (FolderItemType) typeint;
+        if( DirCache.read() != ':' ) {
+          // EOF!
+          goto _end;
+        }
+        String itemName = DirCache.readStringUntil('\n');
+        if( itemName == "" ) return false;
+
+        /*
+        if( typeint == F_SUBFOLDER_NOCACHE ) {
+          if( folderHasPlaylist( fs, itemName.c_str() ) ) {
+            typeint = F_SUBFOLDER;
+          }
+        }
+        */
+
+        printCb( itemName.c_str(), type );
+      }
+      _end:
+      return true;
     }
 
 
-    bool scanFolder( fs::FS &fs, const char* pathname, folderElementPrintCb printCb = &debugFolderElement, activityTicker tickerCb = &debugFolderTicker, size_t maxitems=0)
+    bool dirCacheUpdate( fs::File *dirCache, const char*_itemName, FolderItemType type )
     {
+      if( !dirCache) {
+        log_e("No cache to update!");
+        return false;
+      }
+      log_w("Will update item %s in cache %s", dirCache->name(), _itemName );
+      while( dirCache->available() ) {
+        size_t linepos = dirCache->position();
+        uint8_t typeint = dirCache->read();
+        switch( typeint )
+        {
+          case F_FOLDER:            // SID file list for current folder
+          case F_SUBFOLDER:         // subfolder with SID file list
+          case F_SUBFOLDER_NOCACHE: // subfolder with no SID file list
+          case F_PARENT_FOLDER:     // parent folder
+          case F_SID_FILE:           // single SID file
+          break;
+          default: // EOF ?
+            log_w("EOF?");
+            goto _end;
+        }
+        if( dirCache->read() != ':' ) {
+          // EOF!
+          log_w("EOF!");
+          goto _end;
+        }
+        String itemName = dirCache->readStringUntil('\n');
+
+        if( itemName == "" ) return false;
+
+        if( itemName == String(_itemName) ) {
+          log_w("Matching entry, will update");
+          dirCache->seek( linepos );
+          dirCache->write( (uint8_t)type );
+          return true;
+        }
+      }
+      _end:
+      return false;
+    }
+
+
+    bool dirCacheAdd( fs::FS &fs, fs::File *dirCache, const char*itemName, FolderItemType type )
+    {
+      if( ! dirCache ) {
+        log_e("Invalid file");
+        return false;
+      }
+      if( type == F_FOLDER ) {
+        // notify parent this folder has a playlist
+        const char *dName = dirname( (char *)dirCache->name() );
+        const char *parent = dirname( (char *)dName );
+        String parentCacheName = String( parent ) + "/.dircache";
+        if( !fs.exists( parentCacheName ) ) {
+          log_e("Can't update parent cache, file %s does not exist", parentCacheName.c_str() );
+        } else {
+          bool ret = false;
+          fs::File parentDirCache = fs.open( parentCacheName, "r+" );
+          if( dirCacheUpdate( &parentDirCache, itemName, F_SUBFOLDER ) ) {
+            log_w("Folder type updated in parent cache file %s for playlist item %s", parentCacheName.c_str(), itemName );
+            ret = true;
+          } else {
+            log_e("Unable to update parent cache %s", parentCacheName.c_str() );
+          }
+          parentDirCache.close();
+          return ret;
+        }
+      } else {
+        dirCache->write( (uint8_t)type );
+        dirCache->write( ':' );
+        dirCache->write( (uint8_t*)itemName, strlen( itemName ) ); // no null terminating
+        dirCache->write( '\n' );
+      }
+      return true;
+    }
+
+
+    bool scanFolder( fs::FS &fs, const char* pathname, folderElementPrintCb printCb = &debugFolderElement, activityTicker tickerCb = &debugFolderTicker, size_t maxitems=0, bool force_regen = false)
+    {
+      File DirCache;
       File root = fs.open( pathname );
       if(!root){
         log_e("Failed to open %s directory\n", pathname);
@@ -274,26 +494,44 @@ struct SongCacheManager
         return false;
       }
 
-      bool folder_has_cache = folderHasCache( fs, pathname );
+      bool folder_has_playlist = folderHasPlaylist( fs, pathname );
+      bool folder_has_cache    = folderHasCache( fs, pathname );
       bool build_cache = false;
       bool cache_built = false;
 
+      if( force_regen ) {
+        purge( fs, pathname );
+        folder_has_playlist = false;
+        folder_has_cache = false;
+      }
+
       size_t totalitems = 0;
 
-      if( folder_has_cache ) {
+      if( folder_has_playlist ) {
         printCb( pathname, F_FOLDER );
         totalitems++;
       } else {
         build_cache = true;
       }
 
+      if( folder_has_cache ) {
+        log_d("Serving cached folder");
+        root.close();
+        return scanFolderCache( fs, pathname, printCb );
+      } else {
+        log_d("Generating cached folder");
+        DirCache = fs.open( dirCachePath( pathname ), FILE_WRITE );
+      }
+
       File file = root.openNextFile();
       while( file ) {
         if( file.isDirectory()  ) {
-          if( folderHasCache( fs, file.name() ) ) {
+          if( folderHasPlaylist( fs, file.name() ) ) {
             printCb( file.name(), F_SUBFOLDER );
+            dirCacheAdd( fs, &DirCache, file.name(), F_SUBFOLDER );
           } else {
             printCb( file.name(), F_SUBFOLDER_NOCACHE );
+            dirCacheAdd( fs, &DirCache, file.name(), F_SUBFOLDER_NOCACHE );
           }
           totalitems++;
         } else {
@@ -303,6 +541,7 @@ struct SongCacheManager
 
           if( fName.endsWith( ".sid" ) && !file.isDirectory() ) {
             printCb( file.name(), F_SID_FILE );
+            dirCacheAdd( fs, &DirCache, file.name(), F_SID_FILE );
 
             if( build_cache ) {
               if( addSong( fs, file.name() ) > 0 ) {
@@ -321,10 +560,12 @@ struct SongCacheManager
         if( maxitems>0 && totalitems>=maxitems ) break;
       }
 
-      if( build_cache && cache_built ) {
+      if( build_cache && cache_built && !folder_has_playlist ) {
         printCb( pathname, F_FOLDER );
+        dirCacheAdd( fs, &DirCache, pathname, F_FOLDER );
       }
 
+      DirCache.close();
       root.close();
       return true;
     }
@@ -335,12 +576,12 @@ struct SongCacheManager
       if( !String( _cachepath ).endsWith("/.sidcache") ) {
         log_w("Warning: _cachepath %d does not end with '/.sidcache', will append", _cachepath );
         if( _cachepath[strlen(_cachepath)-1] == '/' ) {
-          sprintf( cachepath, "%s.sidcache", _cachepath );
+          snprintf( cachepath, 255, "%s.sidcache", _cachepath );
         } else {
-          sprintf( cachepath, "%s/.sidcache", _cachepath );
+          snprintf( cachepath, 255, "%s/.sidcache", _cachepath );
         }
       } else {
-        sprintf( cachepath, "%s", _cachepath );
+        snprintf( cachepath, 255, "%s", _cachepath );
       }
 
       if(! SID_FS.exists( cachepath ) ) {
@@ -387,12 +628,8 @@ struct SongCacheManager
       }
       delete songstructbuf;
       cacheFile.close();
-
-      tmpPlayer->setSongstructCachePath( SID_FS, cachepath );
-
+      //tmpPlayer->setSongstructCachePath( SID_FS, cachepath );
       return true;
-      //Serial.println("[REMOVE ME] Now deleting cache");
-      //SID_FS.remove("/tmp/sidsongs.cache" );
     }
 
 
@@ -431,7 +668,7 @@ struct SongCacheManager
         cacheFile = fs.open( cachepath, "w" ); // truncate
       }
       if( ! cacheFile ) return false;
-      sprintf( song->filename, "%s", md5path ); // don't use the full path
+      snprintf( song->filename, 255, "%s", md5path ); // don't use the full path
       size_t objsize = sizeof( songstruct ) + song->subsongs*sizeof(uint32_t);
       size_t written_bytes = cacheFile.write( (uint8_t*)song, objsize );
       cacheFile.close();
@@ -444,6 +681,12 @@ struct SongCacheManager
 SongCacheManager *SongCache = new SongCacheManager();
 
 
+
+
+
+
+
+#if 0
 
 
 int createCacheFromFolder( fs::FS &fs, const char* foldername, const char* filetype, bool recursive )
@@ -481,9 +724,6 @@ int createCacheFromFolder( fs::FS &fs, const char* foldername, const char* filet
   }
   return 1;
 }
-
-
-
 
 
 
@@ -616,4 +856,4 @@ int createCacheFromMd5( fs::FS &fs, const char* foldername, const char* md5path 
 }
 
 
-
+#endif

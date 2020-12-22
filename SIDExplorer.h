@@ -12,8 +12,6 @@ struct folderTypeItem
 };
 
 static std::vector<folderTypeItem> myFolder;
-//static std::vector<folderTypeItem> mySubFolders;
-//static std::vector<folderTypeItem> myFiles;
 
 static int elementsInFolder = 0;
 void addFolderElement( const char* fullpath, FolderItemType type )
@@ -49,7 +47,7 @@ static bool diskTicker()
       tft.fillRect( 2, ypos, 8, 8, C64_DARKBLUE );
     }
     char lineText[12] = {0};
-    sprintf(lineText, "#%d", myFolder.size() );
+    snprintf(lineText, 12, "   #%d", myFolder.size() );
     tft.drawString( lineText, tft.width() -2, ypos );
     toggle = !toggle;
     lastTickerMsec = millis();
@@ -73,11 +71,10 @@ void move_range(size_t start, size_t length, size_t dst, std::vector<T> & v)
 */
 
 
-bool scanFolder( fs::FS &fs, const char* folderName, size_t maxitems=0 ) {
+bool scanFolder( fs::FS &fs, const char* folderName, size_t maxitems=0, bool force_regen = false ) {
 
-  Serial.printf("Scanning folder: %s\n", folderName );
+  Serial.printf("Scanning folder: %s\n", folderName  );
   myFolder.clear();
-
 
   if( String( folderName ) != "/"  ) {
     String dirname = gnu_basename( folderName );
@@ -89,7 +86,7 @@ bool scanFolder( fs::FS &fs, const char* folderName, size_t maxitems=0 ) {
   diskTickerWordWrap = 0;
   diskTickerMsec = millis();
 
-  if( !SongCache->scanFolder( fs, folderName, &addFolderElement, &diskTicker, maxitems ) ) {
+  if( !SongCache->scanFolder( fs, folderName, &addFolderElement, &diskTicker, maxitems, force_regen ) ) {
     log_e("Could not build a list of songs");
     return false;
   }
@@ -126,7 +123,7 @@ bool scanFolder( fs::FS &fs, const char* folderName, size_t maxitems=0 ) {
 struct scrollableItem
 {
   TFT_eSprite* sprite = new TFT_eSprite( &tft );
-  char text[255];
+  char text[256];
   uint16_t xpos   = 0;
   uint16_t ypos   = 0;
   uint16_t width  = 0;
@@ -137,7 +134,7 @@ struct scrollableItem
   bool invert = true;
   void setup( const char* _text, uint16_t _xpos, uint16_t _ypos, uint16_t _width, uint16_t _height, unsigned long _delay=300, bool _invert=true )
   {
-    sprintf( text, " %s ", _text );
+    snprintf( text, 255, " %s ", _text );
     xpos   = _xpos;
     ypos   = _ypos;
     width  = _width;
@@ -230,6 +227,12 @@ void soundIntro()
     sid.sidSetVolume( 0, 15-t );
   }
   SIDKeyBoardPlayer::stopNote( 0 );
+  // back to full silence
+  sid.setAttack(  0, 0 ); // 0 (0-15)
+  sid.setDecay(   0, 0 ); // 2 (0-15)
+  sid.setSustain( 0, 0 ); // 15 (0-15)
+  sid.setRelease( 0, 0 ); // 10 (0-15)
+  sid.setGate(    0, 0 ); // 1 (0-1)
   vTaskDelete( _sid_xHandletab[0] );
   sid.resetsid();
 }
@@ -285,6 +288,88 @@ void sidCallback(  sidEvent event ) {
 
 
 
+Preferences prefs;
+
+
+struct NVSPrefs
+{
+
+  loopmode getLoopMode()
+  {
+    prefs.begin("SIDExplorer");
+    uint8_t playerloopmode = (loopmode)prefs.getUChar("loopmode", (uint8_t)MODE_LOOP_PLAYLIST_RANDOM );
+    prefs.end();
+    Serial.print("Thawed loopmode from NVS: ");
+    switch( playerloopmode ) { // validate
+      case MODE_SINGLE_TRACK:               Serial.println("MODE_SINGLE_TRACK"); break;// don't loop (default, will play next until end of sid and/or track)
+      case MODE_SINGLE_SID:                 Serial.println("MODE_SINGLE_SID"); break;// play all songs available in one sid once
+      case MODE_LOOP_SID:                   Serial.println("MODE_LOOP_SID"); break;//loop all songs in on sid file
+      case MODE_LOOP_PLAYLIST_SINGLE_TRACK: Serial.println("MODE_LOOP_PLAYLIST_SINGLE_TRACK"); break;// loop all tracks available in one playlist playing the default tunes
+      case MODE_LOOP_PLAYLIST_SINGLE_SID:   Serial.println("MODE_LOOP_PLAYLIST_SINGLE_SID"); break;//loop all tracks available in one playlist playing all the subtunes
+      case MODE_LOOP_PLAYLIST_RANDOM:       Serial.println("MODE_LOOP_PLAYLIST_RANDOM"); break;// loop random in current track list
+      default: playerloopmode = MODE_LOOP_PLAYLIST_RANDOM; break;
+    }
+    return (loopmode)playerloopmode;
+  }
+  void setLoopMode( loopmode mode )
+  {
+    prefs.begin("SIDExplorer");
+    prefs.putUChar( "loopmode", (uint8_t)mode );
+    prefs.end();
+    Serial.print("Saved loopmode to NVS: ");
+    switch( mode ) {
+      case MODE_SINGLE_TRACK:               Serial.println("MODE_SINGLE_TRACK"); break;// don't loop (default, will play next until end of sid and/or track)
+      case MODE_SINGLE_SID:                 Serial.println("MODE_SINGLE_SID"); break;// play all songs available in one sid once
+      case MODE_LOOP_SID:                   Serial.println("MODE_LOOP_SID"); break;//loop all songs in on sid file
+      case MODE_LOOP_PLAYLIST_SINGLE_TRACK: Serial.println("MODE_LOOP_PLAYLIST_SINGLE_TRACK"); break;// loop all tracks available in one playlist playing the default tunes
+      case MODE_LOOP_PLAYLIST_SINGLE_SID:   Serial.println("MODE_LOOP_PLAYLIST_SINGLE_SID"); break;//loop all tracks available in one playlist playing all the subtunes
+      case MODE_LOOP_PLAYLIST_RANDOM:       Serial.println("MODE_LOOP_PLAYLIST_RANDOM"); break;// loop random in current track list
+    }
+  }
+
+  uint8_t getVolume()
+  {
+    prefs.begin("SIDExplorer");
+    uint8_t volume = (loopmode)prefs.getUChar("volume", 10 );
+    volume = volume%16; // avoid returning poisonous value
+    Serial.printf("Thawed volume from NVS: %d\n", volume );
+    prefs.end();
+    return volume;
+  }
+
+  void setVolume( uint8_t volume )
+  {
+    prefs.begin("SIDExplorer");
+    prefs.putUChar( "volume", volume );
+    prefs.end();
+    Serial.printf("Saved volume to NVS: %d\n", volume );
+  }
+
+
+  void setLastPath( const char* path )
+  {
+    prefs.begin("SIDExplorer");
+    size_t bytes_written = prefs.putString("path", path);
+    prefs.end();
+  }
+
+  void getLastPath( char* path )
+  {
+    prefs.begin("SIDExplorer");
+    size_t pathlen = prefs.getString("path", path, 255);
+    if( pathlen <= 0 ) {
+      snprintf( path, 255, "%s", SID_FOLDER );
+    }
+    prefs.end();
+  }
+
+
+};
+
+NVSPrefs PlayerPrefs;
+
+
+
 struct SIDExplorer
 {
 
@@ -292,13 +377,15 @@ struct SIDExplorer
   SID_Archive* archives = nullptr;
   size_t totalelements = 0;
 
-  char     folderToScan[255]  = {0};
-  char     lineText[255]      = {0};
+  char     *folderToScan;
+  char     *lineText;
 
   int32_t  itemClicked        = -1;
 
   const uint16_t itemsPerPage = 8;
   uint16_t itemCursor         = 0;
+  uint16_t lastItemCursor[16] = {0};
+  uint8_t  folderDepth        = 0;
   uint16_t spriteWidth        = 0;
   uint16_t spriteHeight       = 0;
   uint16_t lineHeight         = 0;
@@ -332,14 +419,22 @@ struct SIDExplorer
   unsigned long inactive_since = millis();
   unsigned long inactive_delay = 5000;
 
+  ~SIDExplorer() {
+    free( folderToScan );
+    free( lineText     );
+  }
+
   SIDExplorer( fs::FS &_fs, SID_Archive* _archives = nullptr, size_t _totalelements = 0 ) :
     fs(_fs), archives(_archives), totalelements(_totalelements) {
-      sprintf( folderToScan, "%s", SID_FOLDER );
+      folderToScan = (char*)sid_calloc( 256, sizeof(char) );
+      lineText     = (char*)sid_calloc( 256, sizeof(char) );
+      //snprintf( folderToScan, 256, "%s", SID_FOLDER );
+      PlayerPrefs.getLastPath( folderToScan );
       spriteWidth        = tft.width();
       spriteHeight       = tft.height();
       lineHeight         = spriteScroll.fontHeight()+2;
       minScrollableWidth = spriteWidth - 14;
-    }
+  }
 
   int32_t explore() {
 
@@ -351,15 +446,35 @@ struct SIDExplorer
     tft.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
     tft.drawString( "Checking MD5", tft.width()/2, tft.height()/2 );
 
+    MD5Config.progressCb = &MD5ProgressCb;
+
     sidPlayer = new SIDTunesPlayer( 1 );
     sidPlayer->setMD5Parser( &MD5Config );
+
     sidPlayer->setEventCallback( sidCallback );
     sidPlayer->begin( SID_CLOCK, SID_DATA, SID_LATCH, SID_CLOCK_PIN );
-    playerloopmode = sidPlayer->getLoopMode();
+
+    playerloopmode = PlayerPrefs.getLoopMode();
+    sidPlayer->setLoopMode( playerloopmode );
+    setUIPlayerMode( playerloopmode );
+
+    maxVolume = PlayerPrefs.getVolume();
+    sidPlayer->SetMaxVolume( maxVolume );
 
     if( myFolder.size() == 0 ) {
       checkArchives();
     }
+/*
+
+    songstruct *blah = (songstruct *)sid_calloc(1,sizeof(songstruct));
+    blah->subsongs = 1;
+
+    snprintf( blah->md5, 32, "%s", "48c497c669ea4cd7122e073b35393d01" ); // 1:02
+
+    if( sidPlayer->MD5Parser->getDurationsFastFromMD5Hash( blah ) ) {
+      Serial.println("Success!");
+    }
+*/
 
     while( !exitloop ) {
 
@@ -381,6 +496,16 @@ struct SIDExplorer
   }
 
 
+  static void MD5ProgressCb( size_t current, size_t total )
+  {
+    static size_t lastprogress = 0;
+    size_t progress = (100*current)/total;
+    if( progress != lastprogress ) {
+      lastprogress = progress;
+      // TODO: show UI Progress
+      Serial.printf("Progress: %d%s\n", progress, "%" );
+    }
+  }
 
 
   void animateView()
@@ -396,15 +521,7 @@ struct SIDExplorer
         if( renderVoicesTaskHandle == NULL  && ! adsrenabled ) {
           // ADSR not running, draw UI and run task
           log_w("launching renverVoices task");
-          tft.startWrite();
-          tft.fillScreen( C64_DARKBLUE ); // Commodore64 blueish
-          tft.drawFastHLine( 0, 0, tft.width(), C64_MAROON_DARKER );
-          tft.drawFastHLine( 0, 1, tft.width(), C64_MAROON_DARK );
-          tft.fillRect( 0, 2, tft.width(), 12, C64_MAROON );
-          tft.drawJpg( header48x12_jpg, header48x12_jpg_len, 41, 2 );
-          tft.drawFastHLine( 0, 14, tft.width(), C64_MAROON_DARK );
-          tft.drawFastHLine( 0, 15, tft.width(), C64_MAROON_DARKER );
-          tft.endWrite();
+          drawHeader( nullptr );
           positionInPlaylist = -1; // make sure the title is displayed
           xTaskCreatePinnedToCore( renderVoices, "renderVoices", 8192, this, 1, &renderVoicesTaskHandle, SID_PLAYER_CORE/*SID_CPU_CORE*/ ); // will trigger TFT writes
           adsrenabled = true;
@@ -418,6 +535,35 @@ struct SIDExplorer
         renderVoicesTaskHandle = NULL;
       }
     }
+  }
+
+
+  void drawHeader( void* param )
+  {
+    TFT_eSprite *headerSprite;
+    if( param == NULL ) {
+      param = (void*)&tft;
+      headerSprite = new TFT_eSprite( (M5Display*)param );
+      ((M5Display*)param)->drawString( "-=SID Explorer=-", spriteWidth /2, 2 ); // draw failsafe lowres header
+    } else {
+      headerSprite = new TFT_eSprite( (TFT_eSprite*)param );
+      ((TFT_eSprite*)param)->drawString( "-=SID Explorer=-", spriteWidth /2, 2 ); // draw failsafe lowres header
+    }
+    headerSprite->setPsram(false);
+    const char *hdrptr = (const char*)headerSprite->createSprite( tft.width(), 16 );
+    if( hdrptr == NULL ) {
+      log_w("Not enough ram to draw header");
+      return;
+    }
+    headerSprite->fillSprite( C64_DARKBLUE ); // Commodore64 blueish
+    headerSprite->drawFastHLine( 0, 0, tft.width(), C64_MAROON_DARKER );
+    headerSprite->drawFastHLine( 0, 1, tft.width(), C64_MAROON_DARK );
+    headerSprite->fillRect( 0, 2, tft.width(), 12, C64_MAROON );
+    headerSprite->drawJpg( header48x12_jpg, header48x12_jpg_len, 41, 2 );
+    headerSprite->drawFastHLine( 0, 14, tft.width(), C64_MAROON_DARK );
+    headerSprite->drawFastHLine( 0, 15, tft.width(), C64_MAROON_DARKER );
+    headerSprite->pushSprite( 0, 0 );
+    headerSprite->deleteSprite();
   }
 
 
@@ -446,100 +592,114 @@ struct SIDExplorer
           delay(10);
         break;
         case 0x04: // right
-          if( myFolder[itemCursor].type == F_FOLDER && sidPlayer->playerrunning && sidPlayer->maxSongs > 1 ) {
-            sidPlayer->playPrev();
+          if( /*myFolder[itemCursor].type == F_FOLDER &&*/ sidPlayer->playerrunning && sidPlayer->maxSongs > 1 ) {
+            if( playerloopmode == MODE_LOOP_SID || playerloopmode == MODE_SINGLE_SID || playerloopmode == MODE_LOOP_PLAYLIST_SINGLE_SID ) {
+              sidPlayer->playPrevSongInSid();
+            } else {
+              sidPlayer->playPrev();
+            }
           }
         break;
         case 0x08: // left
-          if( myFolder[itemCursor].type == F_FOLDER && sidPlayer->playerrunning && sidPlayer->maxSongs > 1 ) {
-            sidPlayer->playNextSong();
+          if( /*myFolder[itemCursor].type == F_FOLDER &&*/ sidPlayer->playerrunning && sidPlayer->maxSongs > 1 ) {
+            if( playerloopmode == MODE_LOOP_SID || playerloopmode == MODE_SINGLE_SID || playerloopmode == MODE_LOOP_PLAYLIST_SINGLE_SID ) {
+              sidPlayer->playNextSongInSid();
+            } else {
+              sidPlayer->playNextSong();
+            }
           }
         break;
         break;
-        case 0x10: // B
-          switch( myFolder[itemCursor].type )
-          {
-            case F_SID_FILE:
-              if( sidPlayer->playerrunning ) {
-                sidPlayer->stopPlayer();
-                vTaskDelay(100);
-              } else {
-                sidPlayer->setMaxSongs( 1 );
-              }
-              Serial.println("Adding song");
-              if( sidPlayer->addSong( SID_FS, myFolder[itemCursor].path.c_str() ) > 0 ) {
-                vTaskDelay(100); // give time to load
-                Serial.println("Song added, now playing");
-                sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
-                sidPlayer->play(); //it will play one songs in loop
-              }
-            break;
-            case F_FOLDER:
-              if( sidPlayer->playerrunning ) {
-                sidPlayer->stopPlayer();
-                vTaskDelay(100);
-              }
-              sidPlayer->setMaxSongs( 100 );
-              sidPlayer->setLoopMode( playerloopmode );
-              if( SongCache->loadCache( sidPlayer, myFolder[itemCursor].path.c_str() ) ) {
-                sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
-                sidPlayer->play(); //it should play all songs in loop
-              }
-            break;
-            case F_PARENT_FOLDER:
-            case F_SUBFOLDER:
-            case F_SUBFOLDER_NOCACHE:
-              sprintf(folderToScan, "%s", myFolder[itemCursor].path.c_str() );
-              scanFolder( fs, folderToScan, maxitems );
-              itemCursor = 0;
-            break;
+        case 0x10: // B (play/stop button)
+          if( !adsrenabled ) {
+            switch( myFolder[itemCursor].type )
+            {
+              case F_SID_FILE:
+                if( sidPlayer->playerrunning ) {
+                  sidPlayer->stopPlayer();
+                  vTaskDelay(100);
+                } else {
+                  sidPlayer->setMaxSongs( 1 );
+                }
+                Serial.println("Adding song");
+                if( sidPlayer->addSong( SID_FS, myFolder[itemCursor].path.c_str() ) > 0 ) {
+                  vTaskDelay(100); // give time to load
+                  Serial.println("Song added, now playing");
+                  sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
+                  sidPlayer->play(); //it will play one songs in loop
+                }
+              break;
+              case F_FOLDER:
+                if( sidPlayer->playerrunning ) {
+                  sidPlayer->stopPlayer();
+                  vTaskDelay(100);
+                }
+                sidPlayer->setMaxSongs( 100 );
+                if( SongCache->loadCache( sidPlayer, myFolder[itemCursor].path.c_str() ) ) {
+                  sidPlayer->setLoopMode( playerloopmode );
+                  sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
+                  sidPlayer->play(); //it should play all songs in loop
+                }
+              break;
+              case F_PARENT_FOLDER:
+              case F_SUBFOLDER:
+              case F_SUBFOLDER_NOCACHE:
+                snprintf(folderToScan, 256, "%s", myFolder[itemCursor].path.c_str() );
+                PlayerPrefs.setLastPath( folderToScan );
+                scanFolder( fs, folderToScan, maxitems );
+                if( myFolder[itemCursor].type == F_PARENT_FOLDER ) {
+                  // going up
+                  if( folderDepth > 0 ) {
+                    itemCursor = lastItemCursor[folderDepth-1];
+                  } else {
+                    itemCursor = 0;
+                  }
+                  lastItemCursor[folderDepth] = 0;
+                } else {
+                  // going down
+                  lastItemCursor[folderDepth] = itemCursor;
+                  itemCursor = 0;
+                }
+              break;
+            }
+          } else {
+            sidPlayer->stopPlayer();
+            vTaskDelay(100);
           }
           explorer_needs_redraw = true;
         break;
         case 0x20: // Action button
           // circular toggle
-          switch (playerloopmode) {
-            case MODE_SINGLE_TRACK: // don't loop (default, will play next until end of sid and/or track)
-              playerloopmode   = MODE_SINGLE_SID;
-              loopmodeicon     = (const char*)single_jpg;
-              loopmodeicon_len = single_jpg_len;
-            break;
-            case MODE_SINGLE_SID:// play all songs available in one sid once
-              playerloopmode   = MODE_LOOP_SID;
-              loopmodeicon     = (const char*)iconsidfile_jpg;
-              loopmodeicon_len = iconsidfile_jpg_len;
-            break;
-            case MODE_LOOP_SID: //loop all songs in on sid file
-              playerloopmode   = MODE_LOOP_PLAYLIST_SINGLE_TRACK;
-              loopmodeicon     = (const char*)iconloop_jpg;
-              loopmodeicon_len = iconloop_jpg_len;
-            break;
-            case MODE_LOOP_PLAYLIST_SINGLE_TRACK: // loop all tracks available in one playlist playing the default tunes
-              playerloopmode   = MODE_LOOP_PLAYLIST_SINGLE_SID;
-              loopmodeicon     = (const char*)iconlist_jpg;
-              loopmodeicon_len = iconlist_jpg_len;
-            break;
-            case MODE_LOOP_PLAYLIST_SINGLE_SID: //loop all tracks available in one playlist playing all the subtunes
-              playerloopmode   = MODE_LOOP_PLAYLIST_RANDOM;
-              loopmodeicon     = (const char*)iconrandom_jpg;
-              loopmodeicon_len = iconrandom_jpg_len;
-            break;
-            case MODE_LOOP_PLAYLIST_RANDOM: // loop random in current track list
-              playerloopmode   = MODE_SINGLE_TRACK;
-              loopmodeicon     = (const char*)single_jpg;
-              loopmodeicon_len = single_jpg_len;
-            break;
-          };
-          sidPlayer->setLoopMode( playerloopmode );
-          //itemClicked = -1;
-          //exitloop = true;
-          //explorer_needs_redraw = true;
+          if( adsrenabled ) {
+            switch (playerloopmode) {
+              case MODE_SINGLE_TRACK:               setUIPlayerMode( MODE_SINGLE_SID ); break;// don't loop (default, will play next until end of sid and/or track)
+              case MODE_SINGLE_SID:                 setUIPlayerMode( MODE_LOOP_SID ); break;// play all songs available in one sid once
+              case MODE_LOOP_SID:                   setUIPlayerMode( MODE_LOOP_PLAYLIST_SINGLE_TRACK ); break; //loop all songs in on sid file
+              case MODE_LOOP_PLAYLIST_SINGLE_TRACK: setUIPlayerMode( MODE_LOOP_PLAYLIST_SINGLE_SID ); break; // loop all tracks available in one playlist playing the default tunes
+              case MODE_LOOP_PLAYLIST_SINGLE_SID:   setUIPlayerMode( MODE_LOOP_PLAYLIST_RANDOM ); break; //loop all tracks available in one playlist playing all the subtunes
+              case MODE_LOOP_PLAYLIST_RANDOM:       setUIPlayerMode( MODE_SINGLE_TRACK ); break; // loop random in current track list
+            };
+            sidPlayer->setLoopMode( playerloopmode );
+            PlayerPrefs.setLoopMode( playerloopmode ); // save to NVS
+          } else {
+            // only when the ".." folder is being selected
+            if( myFolder[itemCursor].type == F_PARENT_FOLDER ) {
+              Serial.printf("Refresh folder -> regenerate %s Dir List and Songs Cache\n", folderToScan );
+              scanFolder( fs, folderToScan, maxitems, true );
+            } else {
+              // TODO: show information screen on current selected item
+              // folder = show dircache count or suggest creating dircache
+              // playlist = show playlist length
+              // sid file = author, name, pub, subsongs, lengths
+            }
+          }
         break;
         case 0x40: // C
           if( maxVolume > 0 ) {
             maxVolume--;
             sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
             Serial.printf("New volume level: %d\n", maxVolume );
+            PlayerPrefs.setVolume( maxVolume );
           }
         break;
         case 0x80: // D
@@ -547,6 +707,7 @@ struct SIDExplorer
             maxVolume++;
             sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
             Serial.printf("New volume level: %d\n", maxVolume );
+            PlayerPrefs.setVolume( maxVolume );
           }
         break;
         default: // simultaneous buttons push ?
@@ -557,8 +718,39 @@ struct SIDExplorer
       lastresp = resp;
       lastpush = millis();
     }
-    delay(50); // don't spam I2C
+    delay(30); // don't spam I2C
+  }
 
+
+  void setUIPlayerMode( loopmode mode )
+  {
+    switch (mode) {
+      case MODE_SINGLE_TRACK: // don't loop (default, will play next until end of sid and/or track)
+        loopmodeicon     = (const char*)single_jpg;
+        loopmodeicon_len = single_jpg_len;
+      break;
+      case MODE_SINGLE_SID:// play all songs available in one sid once
+        loopmodeicon     = (const char*)single_jpg;
+        loopmodeicon_len = single_jpg_len;
+      break;
+      case MODE_LOOP_SID: //loop all songs in on sid file
+        loopmodeicon     = (const char*)iconsidfile_jpg;
+        loopmodeicon_len = iconsidfile_jpg_len;
+      break;
+      case MODE_LOOP_PLAYLIST_SINGLE_TRACK: // loop all tracks available in one playlist playing the default tunes
+        loopmodeicon     = (const char*)iconloop_jpg;
+        loopmodeicon_len = iconloop_jpg_len;
+      break;
+      case MODE_LOOP_PLAYLIST_SINGLE_SID: //loop all tracks available in one playlist playing all the subtunes
+        loopmodeicon     = (const char*)iconlist_jpg;
+        loopmodeicon_len = iconlist_jpg_len;
+      break;
+      case MODE_LOOP_PLAYLIST_RANDOM: // loop random in current track list
+        loopmodeicon     = (const char*)iconrandom_jpg;
+        loopmodeicon_len = iconrandom_jpg_len;
+      break;
+    };
+    playerloopmode = mode;
   }
 
 
@@ -589,14 +781,22 @@ struct SIDExplorer
     spriteScroll.fillSprite( C64_DARKBLUE );
     spriteScroll.setTextWrap( false );
     spriteScroll.setTextDatum( TC_DATUM );
-    spriteScroll.drawString( "-=SID Explorer=-", spriteWidth /2, 2 );
+
+    //spriteScroll.drawString( "-=SID Explorer=-", spriteWidth /2, 2 );
+    drawHeader( &spriteScroll );
 
     spriteScroll.setTextDatum( TL_DATUM );
+
+    folderDepth = 0;
+    for( int i=0; i<strlen(folderToScan); i++ ) {
+      if( folderToScan[i] == '/' ) folderDepth++;
+    }
+
     if( spriteScroll.textWidth( folderToScan )+2 > spriteWidth  ) {
       String bname = gnu_basename( folderToScan );
-      sprintf( lineText, ">> %s", bname.c_str() );
+      snprintf( lineText, 256, ">> %s", bname.c_str() );
     } else {
-      sprintf( lineText, "$> %s", folderToScan );
+      snprintf( lineText, 256, "$> %s", folderToScan );
     }
     spriteScroll.drawString( lineText, 2, ydirnamepos );
 
@@ -670,6 +870,7 @@ struct SIDExplorer
 
   void checkArchives()
   {
+
     mkdirp( MD5Config.fs, MD5Config.md5filepath ); // from ESP32-Targz: create traversing directories if none exist
 
     if( !scanFolder(fs, folderToScan, maxitems ) ) {

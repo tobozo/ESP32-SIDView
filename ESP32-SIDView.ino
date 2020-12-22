@@ -33,9 +33,9 @@ SIDTunesPlayer *sidPlayer = nullptr;
 #include "SIDExplorer.h"
 
 
-SID_Archive C64MusicDemos = { "C64MusicDemos", "https://phpsecu.re/C64MusicDemos.tar.gz", "/DEMOS",     &MD5Config };
-SID_Archive C64Musicians  = { "C64Musicians",  "https://phpsecu.re/C64Musicians.tar.gz",  "/MUSICIANS", &MD5Config };
-SID_Archive C64MusicGames = { "C64MusicGames", "https://phpsecu.re/C64MusicGames.tar.gz", "/GAMES",     &MD5Config };
+SID_Archive C64MusicDemos("C64MusicDemos", "https://phpsecu.re/C64MusicDemos.tar.gz", "/DEMOS",     &MD5Config );
+SID_Archive C64Musicians ("C64Musicians",  "https://phpsecu.re/C64Musicians.tar.gz",  "/MUSICIANS", &MD5Config );
+SID_Archive C64MusicGames("C64MusicGames", "https://phpsecu.re/C64MusicGames.tar.gz", "/GAMES",     &MD5Config );
 SID_Archive HVSC[3] = { C64MusicGames, C64MusicDemos, C64Musicians };
 
 size_t totalsidpackages = sizeof( HVSC ) / sizeof( HVSC[0] );
@@ -919,7 +919,7 @@ static void renderVoices( void* param = NULL ) {
 
     // track progress
     auto _elapsed = /*sidPlayer->song_duration -*/ sidPlayer->delta_song_duration;
-    auto _progress = (100*_elapsed) / sidPlayer->song_duration;
+    auto _progress = (100*_elapsed) / sidPlayer->getCurrentTrackDuration();
 
 
     if( _lastsubsong != sidPlayer->currentsong ) {
@@ -933,8 +933,8 @@ static void renderVoices( void* param = NULL ) {
         char timeStr[12] = {0};
 
         tft.setTextColor( C64_DARKBLUE, C64_MAROON );
-
         tft.setTextDatum( TL_DATUM );
+        tft.setFont( &Font8x8C64 );
         sprintf(timeStr, "%02d:%02d",
           (_elapsed/60000)%60,
           (_elapsed/1000)%60
@@ -1047,7 +1047,7 @@ static void PlayerButtonsTask( void * param ) {
     #ifdef BOARD_HAS_PSRAM
       if( webServerRunning ) {
         //server.handleClient();
-        ArduinoOTA.handle();
+        //ArduinoOTA.handle();
       }
     #endif
 
@@ -1434,6 +1434,7 @@ void setup() {
       tft.print("http://esp32-sid6581.local");
       */
 
+      /*
       // first pass, download all things
       for( int i=0; i<totalsidpackages; i++ ) {
         if( !HVSC[i].exists() ) {
@@ -1504,6 +1505,7 @@ void setup() {
       } else {
         // custom player
       }
+      */
 
       /*
     #else
@@ -1525,7 +1527,7 @@ void setup() {
     #endif
 */
 
-
+/*
 
     sidPlayer->SetMaxVolume( maxVolume ); //value between 0 and 15
 
@@ -1535,6 +1537,7 @@ void setup() {
 
     xTaskCreatePinnedToCore( PlayerButtonsTask, "PlayerButtonsTask", 4096, NULL, 1, NULL, SID_PLAYER_CORE ); // will trigger SD reads
     xTaskCreatePinnedToCore( renderVoices, "renderVoices", 8192, NULL, 1, NULL, SID_CPU_CORE ); // will trigger TFT writes
+*/
 
 }
 
