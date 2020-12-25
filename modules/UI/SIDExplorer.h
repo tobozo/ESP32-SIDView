@@ -1,7 +1,58 @@
+/*\
 
+  ESP32-SIDView
+  https://github.com/tobozo/ESP32-SIDView
 
-void deInitSprites();
-void initSprites();
+  MIT License
+
+  Copyright (c) 2020 tobozo
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+  -----------------------------------------------------------------------------
+
+\*/
+
+#ifndef _SID_EXPLORER_H_
+#define _SID_EXPLORER_H_
+
+#include "../Cache/SIDCacheManager.h"
+
+static void deInitSprites();
+static void initSprites();
+
+static TaskHandle_t renderVoicesTaskHandle = NULL;
+static void drawVoices( void* param );
+
+int lastresp = -1;
+unsigned long lastpush = millis();
+unsigned long lastEvent = millis();
+int debounce = 200;
+
+uint8_t maxVolume = 10; // value must be between 0 and 15
+static bool render = true;
+static bool stoprender = false;
+int positionInPlaylist = -1;
+
+SIDTunesPlayer *sidPlayer = nullptr;
+SID_Archive_Checker *SidArchiveChecker = nullptr;
+SongCacheManager *SongCache = new SongCacheManager();
 
 
 struct folderTypeItem
@@ -71,7 +122,7 @@ void move_range(size_t start, size_t length, size_t dst, std::vector<T> & v)
 */
 
 
-bool scanFolder( fs::FS &fs, const char* folderName, size_t maxitems=0, bool force_regen = false ) {
+bool getSortedFolder( fs::FS &fs, const char* folderName, size_t maxitems=0, bool force_regen = false ) {
 
   Serial.printf("Scanning folder: %s\n", folderName  );
   myFolder.clear();
@@ -438,6 +489,8 @@ struct SIDExplorer
 
   int32_t explore() {
 
+    randomSeed(analogRead(0)); // for random song
+
     spriteScroll.setPsram(false);
     spriteScroll.setFont( &Font8x8C64 );
     spriteScroll.setTextSize(1);
@@ -523,7 +576,7 @@ struct SIDExplorer
           log_w("launching renverVoices task");
           drawHeader( nullptr );
           positionInPlaylist = -1; // make sure the title is displayed
-          xTaskCreatePinnedToCore( renderVoices, "renderVoices", 8192, this, 1, &renderVoicesTaskHandle, SID_PLAYER_CORE/*SID_CPU_CORE*/ ); // will trigger TFT writes
+          xTaskCreatePinnedToCore( drawVoices, "drawVoices", 2048, this, 1, &renderVoicesTaskHandle, SID_PLAYER_CORE/*SID_CPU_CORE*/ ); // will trigger TFT writes
           adsrenabled = true;
         } else {
           // ADSR already running or stopping
@@ -646,7 +699,7 @@ struct SIDExplorer
               case F_SUBFOLDER_NOCACHE:
                 snprintf(folderToScan, 256, "%s", myFolder[itemCursor].path.c_str() );
                 PlayerPrefs.setLastPath( folderToScan );
-                scanFolder( fs, folderToScan, maxitems );
+                getSortedFolder( fs, folderToScan, maxitems );
                 if( myFolder[itemCursor].type == F_PARENT_FOLDER ) {
                   // going up
                   if( folderDepth > 0 ) {
@@ -685,7 +738,7 @@ struct SIDExplorer
             // only when the ".." folder is being selected
             if( myFolder[itemCursor].type == F_PARENT_FOLDER ) {
               Serial.printf("Refresh folder -> regenerate %s Dir List and Songs Cache\n", folderToScan );
-              scanFolder( fs, folderToScan, maxitems, true );
+              getSortedFolder( fs, folderToScan, maxitems, true );
             } else {
               // TODO: show information screen on current selected item
               // folder = show dircache count or suggest creating dircache
@@ -873,7 +926,7 @@ struct SIDExplorer
 
     mkdirp( MD5Config.fs, MD5Config.md5filepath ); // from ESP32-Targz: create traversing directories if none exist
 
-    if( !scanFolder(fs, folderToScan, maxitems ) ) {
+    if( !getSortedFolder(fs, folderToScan, maxitems ) || !MD5Config.fs->exists( MD5Config.md5filepath ) ) {
       // first run ?
       //TODO: confirmation dialog
       //#ifdef BOARD_HAS_PSRAM
@@ -894,3 +947,5 @@ struct SIDExplorer
   }
 
 };
+
+#endif

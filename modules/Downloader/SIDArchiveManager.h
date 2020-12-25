@@ -1,48 +1,38 @@
-/*
- *
- * SID Archive Manager for Hwpit's SID6581.h
- * copyleft tobozo 2020
- *
- */
+/*\
 
+  ESP32-SIDView
+  https://github.com/tobozo/ESP32-SIDView
 
-//#define SID_FS SPIFFS // deprecated
-#define SID_FS       SD // filesystem (SD strongly recommended)
-#define SID_FOLDER   "/sid" // local path, NO TRAILING SLASH, MUST BE A FOLDER
-#define MD5_FOLDER   "/md5" // where all the md5 stuff is stored
-#define MD5_FILE     MD5_FOLDER "/Songlengths.full.md5" // local path
-#define MD5_FILE_IDX MD5_FILE ".idx"
-#define MD5_URL      "https://www.prg.dtu.dk/HVSC/C64Music/DOCUMENTS/Songlengths.md5" // remote url
+  MIT License
 
+  Copyright (c) 2020 tobozo
 
-#define DEST_FS_USES_SD
-#include <ESP32-targz.h>
-#include "SIDCacheManager.h"
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
 
-MD5FileConfig MD5Config =
-{
-  &SID_FS,          // SD
-  SID_FOLDER,       // /sid
-  MD5_FOLDER,       // /md5
-  MD5_FILE,         // /md5/Songlengths.full.md5
-  MD5_FILE_IDX,     // /md5/Songlengths.full.md5.idx
-  MD5_URL,          // https://www.prg.dtu.dk/HVSC/C64Music/DOCUMENTS/Songlengths.md5
-  MD5_RAINBOW_LOOKUP, // MD5_RAW_READ, MD5_INDEX_LOOKUP, MD5_RAINBOW_LOOKUP
-  nullptr           // callback function for progress when the init happens
-};
-//MD5FileParser *MD5Parser = new MD5FileParser( &MD5Config );
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
 
-int lastresp = -1;
-unsigned long lastpush = millis();
-unsigned long lastEvent = millis();
-int debounce = 200;
-uint8_t maxVolume = 10; // value must be between 0 and 15
-static bool render = true;
-static bool stoprender = false;
-int positionInPlaylist = -1;
-static TaskHandle_t renderVoicesTaskHandle = NULL;
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
 
-static void renderVoices( void* param );
+  -----------------------------------------------------------------------------
+
+\*/
+
+#ifndef _SID_ARCHIVE_MANAGER_H_
+#define _SID_ARCHIVE_MANAGER_H_
+
+#include "web.h"
 
 
 struct PlaylistRenderer
@@ -149,7 +139,7 @@ struct SID_Archive
       return;
     }
     snprintf( tgzFileName, 256, "/%s.tar.gz", name );
-    snprintf( sidRealPath, 256, "%s%s", cfg->sidfolder, path );
+    snprintf( sidRealPath, 256, "%s/.%s.expanded", cfg->sidfolder, path );
     snprintf( cachePath,   256, "/tmp/%s.sidcache", name );
     PrintProgressBar = &UIPrintProgressBar;
   };
@@ -182,6 +172,7 @@ struct SID_Archive
       return false;
     }
     Serial.printf("Success!\n");
+    setExpanded();
     return true;
   }
 
@@ -193,6 +184,21 @@ struct SID_Archive
   bool isExpanded()
   {
     return cfg->fs->exists( sidRealPath );
+  }
+
+  void setExpanded()
+  {
+    if( cfg->fs->exists( sidRealPath ) ) {
+      log_w("Already expanded!");
+      return;
+    }
+    fs::File expansionProofFile = cfg->fs->open( sidRealPath, FILE_WRITE );
+    if(!expansionProofFile ) {
+      log_e("Unable to write expansion proof to %s", sidRealPath );
+      return;
+    }
+    expansionProofFile.write( 64 );
+    expansionProofFile.close();
   }
 
   bool hasCache()
@@ -328,14 +334,12 @@ struct SID_Archive_Checker
       cfg->sidfolder,   // /sid"
       cfg->md5filepath, // /md5/Songlengths.full.md5
       cfg->md5idxpath,  // /md5/Songlengths.full.md5.idx
-      cfg->md5url      // https://www.prg.dtu.dk/HVSC/C64Music/DOCUMENTS/Songlengths.md5
+      cfg->md5url       // https://www.prg.dtu.dk/HVSC/C64Music/DOCUMENTS/Songlengths.md5
     );
   }
 
   void checkArchives( SID_Archive* archives, size_t totalsidpackages )
   {
-    //size_t archive
-    //size_t totalsidpackages = sizeof( archives ) / sizeof( archives[0] );
     Serial.printf("SID Archive Checker received %d packages to check\n", totalsidpackages );
     // first pass, download all things
     for( int i=0; i<totalsidpackages; i++ ) {
@@ -379,23 +383,11 @@ struct SID_Archive_Checker
       }
     }
 
-    // cache files will be created on first access
-    /*
-    for( int i=0; i<totalsidpackages; i++ ) {
-      if( archives[i].exists() && archives[i].isExpanded() && !archives[i].hasCache() ) {
-        Serial.printf("Cache file %s is missing, will rebuild\n", archives[i].cachePath );
-        if( ! archives[i].createAllCacheFiles( 4096 ) ) {
-          cfg->fs->remove( archives[i].cachePath );
-          Serial.println("Halted");
-          while(1);
-        }
-      }
-    }
-    */
-
-    Serial.println("Exiting SID Archive Checker");
+    Serial.println("Leaving SID Archive Checker");
   }
 
 };
 
-SID_Archive_Checker *SidArchiveChecker;
+
+
+#endif

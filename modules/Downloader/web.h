@@ -1,3 +1,36 @@
+/*\
+
+  ESP32-SIDView
+  https://github.com/tobozo/ESP32-SIDView
+
+  MIT License
+
+  Copyright (c) 2020 tobozo
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+  -----------------------------------------------------------------------------
+
+\*/
+
+#ifndef _SID_HVSC_DOWNLOADER_H_
+#define _SID_HVSC_DOWNLOADER_H_
 
 #include <WiFi.h>
 #include <WiFiClient.h>
@@ -77,7 +110,11 @@ void stubbornConnect()
     while (WiFi.waitForConnectResult() != WL_CONNECTED && wifi_retry_count < max_retries)
   #endif
   {
-    WiFi.begin(); // put your ssid / pass if required, only needed once
+    #if defined WIFI_SSID && defined WIFI_PASS
+      WiFi.begin( WIFI_SSID, WIFI_PASS ); // put your ssid / pass if required, only needed once
+    #else
+      WiFi.begin();
+    #endif
     Serial.print(WiFi.macAddress());
     Serial.printf(" => WiFi connect - Attempt No. %d\n", wifi_retry_count+1);
     delay( stubbornness_factor );
@@ -205,3 +242,4 @@ static bool /*yolo*/wget( const char* url, fs::FS &fs, const char* path )
 }
 
 
+#endif

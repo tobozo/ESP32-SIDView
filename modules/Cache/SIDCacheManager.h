@@ -1,4 +1,40 @@
+/*\
 
+  ESP32-SIDView
+  https://github.com/tobozo/ESP32-SIDView
+
+  MIT License
+
+  Copyright (c) 2020 tobozo
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+  -----------------------------------------------------------------------------
+
+\*/
+
+#ifndef _SID_CACHE_MANAGER_H_
+#define _SID_CACHE_MANAGER_H_
+
+
+#include <SidPlayer.h> //https://github.com/hpwit/SID6581
+extern SIDTunesPlayer *sidPlayer;
 
 
 bool getInfoFromSIDFile(fs::FS &fs, const char * path, songstruct * songinfo)
@@ -72,12 +108,11 @@ bool getInfoFromSIDFile(fs::FS &fs, const char * path, songstruct * songinfo)
     if( songinfo->durations != nullptr ) free( songinfo->durations );
     songinfo->durations = (uint32_t*)sid_calloc( songinfo->subsongs, sizeof(uint32_t) );
     if( !sidPlayer->MD5Parser->getDurationsFromSIDPath( songinfo ) ) {
-      /*
+      log_w("SID Path lookup failed, for song '%s' will try md5 hash lookup", songinfo->name );
       if( strcmp( songinfo->md5, "00000000000000000000000000000000" ) == 0 ) {
         snprintf( songinfo->md5, 33, "%s", Sid_md5::calcMd5( file ) );
       }
       sidPlayer->MD5Parser->getDurationsFromMD5Hash( songinfo );
-      */
     }
   }
 
@@ -95,8 +130,11 @@ enum FolderItemType
   F_SID_FILE           // single SID file
 };
 
+
 typedef bool (*activityTicker)(); // callback for i/o activity during folder enumeration
 typedef void (*folderElementPrintCb)( const char* fullpath, FolderItemType type );
+
+
 static void debugFolderElement( const char* fullpath, FolderItemType type )
 {
   String basepath = gnu_basename( fullpath );
@@ -109,6 +147,8 @@ static void debugFolderElement( const char* fullpath, FolderItemType type )
     case F_SID_FILE:          log_d("SID File"); break;
   }
 }
+
+
 static bool debugFolderTicker()
 {
   // not really a progress function but can show
@@ -340,7 +380,7 @@ struct SongCacheManager
         if( strcmp( (const char*)tmpsong->filename, md5path ) == 0  ) {
           memcpy( song, tmpsong, bufsize );
           song->fs = &fs; // set to current filesystem
-          song->durations = (uint32_t*)sid_calloc(1, song->subsongs*sizeof(uint32_t) );
+          song->durations = (uint32_t*)sid_calloc(song->subsongs, sizeof(uint32_t) );
           cacheFile.readBytes( (char*)song->durations, song->subsongs*sizeof(uint32_t) );
           ret = true;
           break;
@@ -599,8 +639,8 @@ struct SongCacheManager
       Serial.printf("Cache file %s (%d bytes) estimated to %d entries (average %d bytes each)\n", cachepath, filesize, filesize/bufsize, bufsize );
       char *songstructbuf =  new char[bufsize+1];
       while( cacheFile.readBytes( songstructbuf, bufsize ) == bufsize ) {
-        if( tmpPlayer->numberOfSongs > sidPlayer->maxSongs ) {
-          log_w("Max songs (%d) in player reached, the rest of this cache will be ignored", sidPlayer->maxSongs );
+        if( tmpPlayer->numberOfSongs > tmpPlayer->maxSongs ) {
+          log_w("Max songs (%d) in player reached, the rest of this cache will be ignored", tmpPlayer->maxSongs );
           break;
         }
         songstruct * song;
@@ -675,185 +715,181 @@ struct SongCacheManager
       return written_bytes == objsize;
     }
 
-
 };
 
-SongCacheManager *SongCache = new SongCacheManager();
 
 
+  #if 0
 
 
+  int createCacheFromFolder( fs::FS &fs, const char* foldername, const char* filetype, bool recursive )
+  {
+    File root = fs.open( foldername );
+    if(!root){
+      log_e("Failed to open %s directory\n", foldername);
+      return 0;
+    }
+    if(!root.isDirectory()){
+      log_e("%s is not a directory\b", foldername);
+      return 0;
+    }
+    File file = root.openNextFile();
+    while(file){
+      // handle both uppercase and lowercase of the extension
+      String fName = String( file.name() );
+      fName.toLowerCase();
 
-
-
-#if 0
-
-
-int createCacheFromFolder( fs::FS &fs, const char* foldername, const char* filetype, bool recursive )
-{
-  File root = fs.open( foldername );
-  if(!root){
-    log_e("Failed to open %s directory\n", foldername);
-    return 0;
-  }
-  if(!root.isDirectory()){
-    log_e("%s is not a directory\b", foldername);
-    return 0;
-  }
-  File file = root.openNextFile();
-  while(file){
-    // handle both uppercase and lowercase of the extension
-    String fName = String( file.name() );
-    fName.toLowerCase();
-
-    if( fName.endsWith( filetype ) && !file.isDirectory() ) {
-      if( SongCache->addSong(fs, file.name() ) == -1 ) return -1;
-      // log_v("[INFO] Added [%s] ( %d bytes )\n", file.name(), file.size() );
-    } else if( file.isDirectory()  ) {
-      if( recursive ) {
-          int ret = createCacheFromFolder( fs, file.name(), filetype, true );
-          if( ret == -1 ) return -1;
+      if( fName.endsWith( filetype ) && !file.isDirectory() ) {
+        if( SongCache->addSong(fs, file.name() ) == -1 ) return -1;
+        // log_v("[INFO] Added [%s] ( %d bytes )\n", file.name(), file.size() );
+      } else if( file.isDirectory()  ) {
+        if( recursive ) {
+            int ret = createCacheFromFolder( fs, file.name(), filetype, true );
+            if( ret == -1 ) return -1;
+        } else {
+            log_i("[INFO] Ignored [%s]\n", file.name() );
+        }
       } else {
-          log_i("[INFO] Ignored [%s]\n", file.name() );
-      }
-    } else {
-      log_i("[INFO] Ignored [%s]\n", file.name() );
+        log_i("[INFO] Ignored [%s]\n", file.name() );
 
+      }
+      file = root.openNextFile();
     }
-    file = root.openNextFile();
+    return 1;
   }
-  return 1;
-}
 
 
 
-// TODO: deprecate this
-int createCacheFromMd5( fs::FS &fs, const char* foldername, const char* md5path )
-{
-  File md5File = fs.open( md5path );
-  if( !md5File ) return -1;
-  char    filename[255]   = {0};
-  char    md5hash[33]     = {0};
-  char    fullpath[255]   = {0};
-  int32_t linesCount      = -1;
-  size_t  md5FileSize     = md5File.size();
-  size_t  totalDecoded    = 0; // entries count
-  size_t  totalProcessed  = 0; // matches count
-  size_t  totalIgnored    = 0; // missing files count
-  size_t  totalTruncated  = 0; // too many subsongs
-  uint32_t durations[256] = {0}; // looks like even 64 isn't enough, let's cap this
-  size_t durationsSize    = sizeof( durations ) / sizeof( uint32_t );
-  uint8_t progress        = 0;
-  uint8_t lastprogress    = 0;
-  unsigned long start     = millis();
-  // speed up testing
-  //md5File.seek( md5FileSize-4096 );
-  //md5File.readStringUntil('\n');
+  // TODO: deprecate this
+  int createCacheFromMd5( fs::FS &fs, const char* foldername, const char* md5path )
+  {
+    File md5File = fs.open( md5path );
+    if( !md5File ) return -1;
+    char    filename[255]   = {0};
+    char    md5hash[33]     = {0};
+    char    fullpath[255]   = {0};
+    int32_t linesCount      = -1;
+    size_t  md5FileSize     = md5File.size();
+    size_t  totalDecoded    = 0; // entries count
+    size_t  totalProcessed  = 0; // matches count
+    size_t  totalIgnored    = 0; // missing files count
+    size_t  totalTruncated  = 0; // too many subsongs
+    uint32_t durations[256] = {0}; // looks like even 64 isn't enough, let's cap this
+    size_t durationsSize    = sizeof( durations ) / sizeof( uint32_t );
+    uint8_t progress        = 0;
+    uint8_t lastprogress    = 0;
+    unsigned long start     = millis();
+    // speed up testing
+    //md5File.seek( md5FileSize-4096 );
+    //md5File.readStringUntil('\n');
 
-  while ( md5File.available() ) {
-    linesCount++;
-    String line    = md5File.readStringUntil('\n');
-    size_t lineLen = strlen( line.c_str() );
-    size_t cursorPosition = md5File.position();
-    if( lineLen < 10 ) break; // end of file or garbage, no need to continue
-    progress = (100*cursorPosition)/md5FileSize;
-    if( progress != lastprogress ) {
-      lastprogress = progress;
-      Serial.printf("MD5 Database Parsing Progress: %3d%s (%5d/%-5d matches, %d lines, %d bytes read), \n", progress, "%", totalProcessed, totalDecoded, linesCount, cursorPosition );
-    }
-    if( line[0]=='[') continue; // ignore
-    if( line[0]==';') { // is filename
-      memmove( filename, line.c_str()+2, lineLen ); // extract filename (and trim the first two characters "; ")
-      sprintf( fullpath, "%s%s", SID_FOLDER, filename ); // compute real path on filesystem
+    while ( md5File.available() ) {
       linesCount++;
-      String md5line = md5File.readStringUntil('\n') + " "; // read next line and append space as terminator
-      const char* md5linecstr = md5line.c_str(); // alias this to a const char* to avoid later stack smashing
-      lineLen = strlen( md5linecstr ); // how long is that string ?
-      if( lineLen <= 32 ) {
-        Serial.printf("[ERROR] Expected md5 hash not found at line %d\n", linesCount );
-        continue;
+      String line    = md5File.readStringUntil('\n');
+      size_t lineLen = strlen( line.c_str() );
+      size_t cursorPosition = md5File.position();
+      if( lineLen < 10 ) break; // end of file or garbage, no need to continue
+      progress = (100*cursorPosition)/md5FileSize;
+      if( progress != lastprogress ) {
+        lastprogress = progress;
+        Serial.printf("MD5 Database Parsing Progress: %3d%s (%5d/%-5d matches, %d lines, %d bytes read), \n", progress, "%", totalProcessed, totalDecoded, linesCount, cursorPosition );
       }
-      // string looks healthy enough for data extraction
-      memmove( md5hash, md5linecstr, 32 ); // capture md5 hash for later
-      totalDecoded++;
-      // now see if it's worth decoding the durations
-      if( !fs.exists( fullpath ) ) {
-        log_d("[NOTICE] File not found: %s", filename );
-        totalIgnored++;
-        continue;
-      }
+      if( line[0]=='[') continue; // ignore
+      if( line[0]==';') { // is filename
+        memmove( filename, line.c_str()+2, lineLen ); // extract filename (and trim the first two characters "; ")
+        sprintf( fullpath, "%s%s", SID_FOLDER, filename ); // compute real path on filesystem
+        linesCount++;
+        String md5line = md5File.readStringUntil('\n') + " "; // read next line and append space as terminator
+        const char* md5linecstr = md5line.c_str(); // alias this to a const char* to avoid later stack smashing
+        lineLen = strlen( md5linecstr ); // how long is that string ?
+        if( lineLen <= 32 ) {
+          Serial.printf("[ERROR] Expected md5 hash not found at line %d\n", linesCount );
+          continue;
+        }
+        // string looks healthy enough for data extraction
+        memmove( md5hash, md5linecstr, 32 ); // capture md5 hash for later
+        totalDecoded++;
+        // now see if it's worth decoding the durations
+        if( !fs.exists( fullpath ) ) {
+          log_d("[NOTICE] File not found: %s", filename );
+          totalIgnored++;
+          continue;
+        }
 
-      //int durationsFound = getDurationsFromMd5String( md5line, durations );
-/*
-      memset( durations, 0, durationsSize*sizeof(uint32_t) ); // blank the array
-      int res = md5line.indexOf('='); // where do the timings start in the string ?
-      if (res == -1 || res >= lineLen ) { // the md5 file is malformed or an i/o error occured
-        log_e("[ERROR] bad md5 line: %s at line %d / offset %d", md5linecstr, linesCount-1, cursorPosition );
-        continue;
-      };
+        //int durationsFound = getDurationsFromMd5String( md5line, durations );
+  /*
+        memset( durations, 0, durationsSize*sizeof(uint32_t) ); // blank the array
+        int res = md5line.indexOf('='); // where do the timings start in the string ?
+        if (res == -1 || res >= lineLen ) { // the md5 file is malformed or an i/o error occured
+          log_e("[ERROR] bad md5 line: %s at line %d / offset %d", md5linecstr, linesCount-1, cursorPosition );
+          continue;
+        };
 
-      char parsedTime[11]     = {0}; // for storing mm.ss.SSS
-      uint8_t parsedTimeCount = 0; // how many durations/subsongs
-      uint8_t parsedIndex     = 0; // substring parser index
-      for( int i=res; i<lineLen; i++ ) {
-        //char parsedChar = md5linecstr[i];
-        switch( md5linecstr[i] ) {
-          case '=': // durations begin!
-            parsedIndex = 0;
-          break;
-          case ' ': // next or last duration
-            if( parsedIndex > 0 ) {
-              parsedTime[parsedIndex+1] = '\0'; // null terminate
-              int mm,ss,SSS; // for storing the extracted time values
-              sscanf( parsedTime, "%d:%d.%d", &mm, &ss, &SSS );
-              durations[parsedTimeCount] = (mm*60*1000)+(ss*1000)+SSS;
-              //Serial.printf("[Track #%d:%d] (%16s) %s / %d ms\n", totalProcessed, parsedTimeCount, (const char*)filename, parsedTime, durations[parsedTimeCount] );
-              parsedTimeCount++;
-            }
-            parsedIndex = 0;
-          break;
-          default:
-            if( parsedIndex > 10 ) { // "mm.ss.SSS" pattern can't be more than 10 chars, something went wrong
-              Serial.printf("[ERROR] Substring index overflow for track %s at subsong #%d items\n", (const char*)filename, parsedTimeCount );
+        char parsedTime[11]     = {0}; // for storing mm.ss.SSS
+        uint8_t parsedTimeCount = 0; // how many durations/subsongs
+        uint8_t parsedIndex     = 0; // substring parser index
+        for( int i=res; i<lineLen; i++ ) {
+          //char parsedChar = md5linecstr[i];
+          switch( md5linecstr[i] ) {
+            case '=': // durations begin!
               parsedIndex = 0;
-              goto _addSongCache; // break out of switch and parent loop
-            }
-            parsedTime[parsedIndex] = md5linecstr[i];
-            parsedIndex++;
+            break;
+            case ' ': // next or last duration
+              if( parsedIndex > 0 ) {
+                parsedTime[parsedIndex+1] = '\0'; // null terminate
+                int mm,ss,SSS; // for storing the extracted time values
+                sscanf( parsedTime, "%d:%d.%d", &mm, &ss, &SSS );
+                durations[parsedTimeCount] = (mm*60*1000)+(ss*1000)+SSS;
+                //Serial.printf("[Track #%d:%d] (%16s) %s / %d ms\n", totalProcessed, parsedTimeCount, (const char*)filename, parsedTime, durations[parsedTimeCount] );
+                parsedTimeCount++;
+              }
+              parsedIndex = 0;
+            break;
+            default:
+              if( parsedIndex > 10 ) { // "mm.ss.SSS" pattern can't be more than 10 chars, something went wrong
+                Serial.printf("[ERROR] Substring index overflow for track %s at subsong #%d items\n", (const char*)filename, parsedTimeCount );
+                parsedIndex = 0;
+                goto _addSongCache; // break out of switch and parent loop
+              }
+              parsedTime[parsedIndex] = md5linecstr[i];
+              parsedIndex++;
+          }
+          if( parsedTimeCount >= durationsSize ) { // prevent stack smashing
+            Serial.printf("[WARNING] track %s has too many subsongs (max=%d), truncating at index %d\n", (const char*)filename, durationsSize, parsedTimeCount-1);
+            totalTruncated++;
+            break;
+          }
         }
-        if( parsedTimeCount >= durationsSize ) { // prevent stack smashing
-          Serial.printf("[WARNING] track %s has too many subsongs (max=%d), truncating at index %d\n", (const char*)filename, durationsSize, parsedTimeCount-1);
-          totalTruncated++;
-          break;
+        if( parsedTimeCount > 0 ) {
+          log_d("[Track #%d] (%16s) %d song(s)", totalProcessed, (const char*)filename, parsedTimeCount );
+          totalProcessed++;
         }
-      }
-      if( parsedTimeCount > 0 ) {
-        log_d("[Track #%d] (%16s) %d song(s)", totalProcessed, (const char*)filename, parsedTimeCount );
-        totalProcessed++;
-      }
-      _addSongCache:
-      if(1) { ; } // stupid compiler wants nonempty tokens after a goto label
-      */
-      // see if the cache needs updating
-      //addSongToCache( fs, fullpath, durations, md5hash );
+        _addSongCache:
+        if(1) { ; } // stupid compiler wants nonempty tokens after a goto label
+        */
+        // see if the cache needs updating
+        //addSongToCache( fs, fullpath, durations, md5hash );
 
-    } // end if( line is filename )
-  }//end while( md5File.available() )
+      } // end if( line is filename )
+    }//end while( md5File.available() )
 
-  unsigned long totalduration = millis() - start;
+    unsigned long totalduration = millis() - start;
 
-  Serial.printf("MD5 File scanning finished !\nScan duration: %d seconds\nProcessed lines: %d (%d bytes)\nMatched entries: %d/%d\nTruncated subsongs: %d\nMissing files:%d\n",
-    uint32_t(totalduration/1000),
-    linesCount,
-    md5FileSize,
-    totalProcessed,
-    totalDecoded,
-    totalTruncated,
-    totalIgnored
-  );
+    Serial.printf("MD5 File scanning finished !\nScan duration: %d seconds\nProcessed lines: %d (%d bytes)\nMatched entries: %d/%d\nTruncated subsongs: %d\nMissing files:%d\n",
+      uint32_t(totalduration/1000),
+      linesCount,
+      md5FileSize,
+      totalProcessed,
+      totalDecoded,
+      totalTruncated,
+      totalIgnored
+    );
 
-  return linesCount;
-}
+    return linesCount;
+  }
+
+
+  #endif
 
 
 #endif
