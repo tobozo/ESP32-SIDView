@@ -127,7 +127,8 @@ enum FolderItemType
   F_SUBFOLDER,         // subfolder with SID file list
   F_SUBFOLDER_NOCACHE, // subfolder with no SID file list
   F_PARENT_FOLDER,     // parent folder
-  F_SID_FILE           // single SID file
+  F_SID_FILE,          // single SID file
+  F_TOOL_CB            // virtual file representing a program/callback
 };
 
 
@@ -145,6 +146,7 @@ static void debugFolderElement( const char* fullpath, FolderItemType type )
     case F_SUBFOLDER_NOCACHE: log_d("Subfolder Found :%s", basepath.c_str() ); break;
     case F_PARENT_FOLDER:     log_d("Parent folder"); break;
     case F_SID_FILE:          log_d("SID File"); break;
+    case F_TOOL_CB:           log_d("Tool"); break;
   }
 }
 
@@ -415,7 +417,8 @@ struct SongCacheManager
           case F_SUBFOLDER:         // subfolder with SID file list
           case F_SUBFOLDER_NOCACHE: // subfolder with no SID file list
           case F_PARENT_FOLDER:     // parent folder
-          case F_SID_FILE:           // single SID file
+          case F_SID_FILE:          // single SID file
+          case F_TOOL_CB:           // not a real file
           break;
           default: // EOF ?
             goto _end;
@@ -459,7 +462,8 @@ struct SongCacheManager
           case F_SUBFOLDER:         // subfolder with SID file list
           case F_SUBFOLDER_NOCACHE: // subfolder with no SID file list
           case F_PARENT_FOLDER:     // parent folder
-          case F_SID_FILE:           // single SID file
+          case F_SID_FILE:          // single SID file
+          case F_TOOL_CB:           // not a real file
           break;
           default: // EOF ?
             log_w("EOF?");
@@ -526,11 +530,11 @@ struct SongCacheManager
       File DirCache;
       File root = fs.open( pathname );
       if(!root){
-        log_e("Failed to open %s directory\n", pathname);
+        log_e("Fatal: failed to open %s directory\n", pathname);
         return false;
       }
       if(!root.isDirectory()){
-        log_e("%s is not a directory\b", pathname);
+        log_e("Fatal: %s is not a directory\b", pathname);
         return false;
       }
 

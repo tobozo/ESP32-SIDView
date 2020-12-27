@@ -35,21 +35,16 @@
 #include "../ADSR/ADSR.h"
 
 
-enum RateType {
+enum RateType
+{
   RATE_ATTACK,
   RATE_DECAY,
   RATE_RELEASE
 };
 
 
-// some buffers for the waveform rendering
-int gates[3] = {-1,-1,-1};
-//int32_t voicepos[3] = {0,0,0};
-int outputArray[129] = {0};
-static vec2 adsrPoints[129];
-
-
-struct Oscillator {
+struct Oscillator
+{
   uint32_t freqHz; // cycles per second ( Hertz )
   uint32_t freqms; // cycles per microsecond
   int32_t period; // in microseconds
@@ -59,11 +54,13 @@ struct Oscillator {
 
   Oscillator() {};
 
-  Oscillator( uint32_t freq ) {
+  Oscillator( uint32_t freq )
+  {
     setFreqHz( freq );
   };
 
-  void setFreqHz( uint32_t hz ) {
+  void setFreqHz( uint32_t hz )
+  {
     freqHz     = hz;
     freqms     = hz * 1000.0;
     if( hz == 0 ) return;
@@ -71,7 +68,8 @@ struct Oscillator {
     log_d("freqHz: %4d, freqms: %8d, periodms: %5d\n", freqHz, freqms, period );
   }
 
-  float getTriangle( int32_t utime ) {
+  float getTriangle( int32_t utime )
+  {
     // ex: 3951Hz (or 3.951KHz) : 1 period = 253 microseconds (or 0.253 milliseconds)
     int32_t xpos       = utime < 0  ? period + ((utime+1)%-period) : utime%period;
     int32_t doublexpos = xpos*2;
@@ -81,13 +79,15 @@ struct Oscillator {
     return 0.5 - (doubleyprogress / 50.0);
   }
 
-  float getSawTooth( int32_t utime ) {
+  float getSawTooth( int32_t utime )
+  {
     int32_t ypos       = utime < 0  ? period + ((utime+1)%-period) : utime%period;
     int32_t yprogress  = 50 - ( (ypos*50)/(period) );
     return 0.5 - (yprogress / 50.0);
   }
 
-  float getSquare( int32_t utime, int PWn ) {
+  float getSquare( int32_t utime, int PWn )
+  {
     // Where PWn is the 12-bit number in the Pulse Width registers.
     // Range from 0 to 4095 ($FFF) in the C64 pulse width registers
     // A value of 2048 ($800) will produce a square wave
@@ -99,7 +99,8 @@ struct Oscillator {
     return (state ? 0.5 : -0.5);
   }
 
-  float getNoise( int32_t utime, int PWn  ) {
+  float getNoise( int32_t utime, int PWn  )
+  {
     int32_t xpos       = utime < 0  ? period + ((utime+1)%-period) : utime%period;
     float pwn          = (PWn/4095.0) - 0.5; // PWn to per one range -0.5 <-> 0.5
     float xlow         = period/2 +  period*pwn;
@@ -112,7 +113,8 @@ struct Oscillator {
 
 
 
-struct OscilloView {
+struct OscilloView
+{
   Oscillator *osc      = nullptr;
   ADSR *env            = nullptr;
   TFT_eSprite *sprite  = nullptr;
@@ -157,8 +159,8 @@ struct OscilloView {
     sprite->createSprite( width, height );
     sprite->setPaletteColor(0, bgcol );
     sprite->setPaletteColor(1, fgcol );
-    graphWidth  = width; // TODO: uint8_t *buffer = new uint8_t( width+1 );
-    graphHeight = height -2; // add some margin
+    graphWidth  = width;
+    graphHeight = height - 2; // add some margin
     timeFrameRatio = float(timeFrameWidth_us) / float(graphWidth); // how many micros per pixel
     bgcolor = bgcol;
     fgcolor = fgcol;
@@ -210,45 +212,34 @@ struct OscilloView {
 
   void setOscType( uint8_t type )
   {
-    switch( type ) {
-      case SID_WAVEFORM_TRIANGLE:
-      case SID_WAVEFORM_SAWTOOTH:
-      case SID_WAVEFORM_PULSE /* SID_WAVEFORM_SQUARE */: // square
-      case SID_WAVEFORM_NOISE:
-        oscType = type;
-      break;
-      case 0://SILENCE ?
-      default:
-        oscType = 0;
-      break;
-    }
+    oscType = type;
   }
 
 
   float getOscFloatValue( float t )
   {
-    switch( oscType ) {
-      case SID_WAVEFORM_TRIANGLE:
-        log_v("Triangle ");
-        return osc->getTriangle( t );
-      break;
-      case SID_WAVEFORM_SAWTOOTH:
-        log_v("Sawtooth ");
-        return osc->getSawTooth( t );
-      break;
-      case SID_WAVEFORM_PULSE /* SID_WAVEFORM_SQUARE */: // square
-        log_v("Square (pulse %d) ", pulsewidth);
-        return osc->getSquare( t, pulsewidth );
-      break;
-      case SID_WAVEFORM_NOISE:
-        log_v("Noise (pulse %d) ", pulsewidth);
-        return osc->getNoise( t, pulsewidth );
-      break;
-      case 0://SILENCE ?
-      default:
-        return 0;
-      break;
+    float ret = 0;
+    float units = 0.0;
+    if( oscType & SID_WAVEFORM_TRIANGLE ) {
+      ret += osc->getTriangle( t );
+      units++;
     }
+    if( oscType & SID_WAVEFORM_SAWTOOTH ) {
+      ret += osc->getSawTooth( t );
+      units++;
+    }
+    if( oscType & SID_WAVEFORM_PULSE ) {
+      ret += osc->getSquare( t, pulsewidth );
+      units++;
+    }
+    if( oscType & SID_WAVEFORM_NOISE ) {
+      ret += osc->getNoise( t, pulsewidth );
+      units++;
+    }
+    if( units > 1 ) {
+      ret /= units;
+    }
+    return ret;
   }
 
 
@@ -279,6 +270,8 @@ struct OscilloView {
     float    release    = sid.getRelease(voice); // 0-15
     uint32_t fout       = sid.getFrequencyHz(voice);// * 0.00596; // Fout = (Fn * 0.0596) Hz
     bool     gate       = sid.getGate( voice );
+    int  ringmode       = sid.getRingMode( voice );
+    int      sync       = sid.getSync( voice );
     //snprintf( hexEnveloppe, 5, "%x%x%x%x", int(attack), int(decay), int(sustain), int(release) );
     //Serial.printf("[%s] -> ", hexEnveloppe );
     float sampleRate = timeFrameWidth_ms; // float( fps );
@@ -311,6 +304,7 @@ struct OscilloView {
       float output = adsramplitude*oscVal; // Oscillator + ADSR
       //float output  = oscVal; // Oscillator only
       valuesCache[i] = (output*graphHeight)+graphHeight/2;
+      // TODO: add filter
     }
 
     for( int i=1; i<graphWidth; i++ ) {

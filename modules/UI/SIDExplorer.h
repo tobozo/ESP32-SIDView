@@ -77,6 +77,7 @@ void addFolderElement( const char* fullpath, FolderItemType type )
     case F_SUBFOLDER_NOCACHE: log_d("Subfolder Found :%s @ %s\n", basepath.c_str(), fullpath ); break;
     case F_PARENT_FOLDER:     log_d("Parent folder: %s @ %s\n", basepath.c_str(), fullpath ); break;
     case F_SID_FILE:          log_d("SID File: %s @ %s\n", basepath.c_str(), fullpath ); break;
+    case F_TOOL_CB:           log_d("Tool file: %s @ %s\n", basepath.c_str(), fullpath ); break;
   }
 }
 
@@ -120,55 +121,6 @@ void move_range(size_t start, size_t length, size_t dst, std::vector<T> & v)
   v.insert(v.begin() + final_dst, tmp.begin(), tmp.end());
 }
 */
-
-
-bool getSortedFolder( fs::FS &fs, const char* folderName, size_t maxitems=0, bool force_regen = false ) {
-
-  Serial.printf("Scanning folder: %s\n", folderName  );
-  myFolder.clear();
-
-  if( String( folderName ) != "/"  ) {
-    String dirname = gnu_basename( folderName );
-    String parentFolder = String( folderName ).substring( 0, strlen( folderName ) - (dirname.length()+1) );
-    if( parentFolder == "" ) parentFolder = "/";
-    myFolder.push_back( { String(".."), parentFolder, F_PARENT_FOLDER } );
-  }
-
-  diskTickerWordWrap = 0;
-  diskTickerMsec = millis();
-
-  if( !SongCache->scanFolder( fs, folderName, &addFolderElement, &diskTicker, maxitems, force_regen ) ) {
-    log_e("Could not build a list of songs");
-    return false;
-  }
-
-  std::sort(myFolder.begin(), myFolder.end(), [](const folderTypeItem &a, const folderTypeItem &b)
-  {
-    if( a.name == b.name )
-      return true;
-    if( b.type == F_PARENT_FOLDER ) return false; // hoist ".."
-    if( b.type == F_FOLDER && a.type == F_PARENT_FOLDER ) return true;
-    if( b.type == F_FOLDER ) return false; // hoist playlist files
-    if( a.type == F_FOLDER ) return true; // hoist playlist files
-    // TODO: sort F_SUBFOLDER and F_SUBFOLDER_NOCACHE separately from F_SID_FILE
-    uint8_t al = a.name.length(), bl = b.name.length(), max = 0;
-    const char *as = a.name.c_str(), *bs = b.name.c_str();
-    bool ret = false;
-    if( al >= bl ) {
-      max = bl;
-      ret = false;
-    } else {
-      max = al;
-      ret = true;
-    }
-    for( uint8_t i=0;i<max;i++ ) {
-      if( as[i] != bs[i] ) return as[i] < bs[i];
-    }
-    return ret;
-  });
-
-  return true;
-}
 
 
 struct scrollableItem
@@ -424,10 +376,11 @@ NVSPrefs PlayerPrefs;
 struct SIDExplorer
 {
 
-  fs::FS &fs;
-  SID_Archive* archives = nullptr;
+  MD5FileConfig *cfg;
+  //SID_Archive* archive = nullptr;
   size_t totalelements = 0;
 
+  fs::FS   *fs;
   char     *folderToScan;
   char     *lineText;
 
@@ -470,15 +423,18 @@ struct SIDExplorer
   unsigned long inactive_since = millis();
   unsigned long inactive_delay = 5000;
 
-  ~SIDExplorer() {
+  ~SIDExplorer()
+  {
     free( folderToScan );
     free( lineText     );
   }
 
-  SIDExplorer( fs::FS &_fs, SID_Archive* _archives = nullptr, size_t _totalelements = 0 ) :
-    fs(_fs), archives(_archives), totalelements(_totalelements) {
+  SIDExplorer( MD5FileConfig *_cfg ) : cfg(_cfg)
+  {
+      //archive = cfg->archive;
       folderToScan = (char*)sid_calloc( 256, sizeof(char) );
       lineText     = (char*)sid_calloc( 256, sizeof(char) );
+      fs = cfg->fs;
       //snprintf( folderToScan, 256, "%s", SID_FOLDER );
       PlayerPrefs.getLastPath( folderToScan );
       spriteWidth        = tft.width();
@@ -487,9 +443,39 @@ struct SIDExplorer
       minScrollableWidth = spriteWidth - 14;
   }
 
-  int32_t explore() {
 
+  void loadingScreen()
+  {
+    tft.fillScreen( C64_DARKBLUE ); // Commodore64 blueish
+    tft.drawJpg( header128x32_jpg, header128x32_jpg_len, 0, 0 );
+    bool toggle = false;
+    auto lastcheck = millis();
+    // 88x26
+    int xpos = tft.width()/2  - 88/2;
+    int ypos = tft.height()/2 - 26/2;
+    tft.drawJpg( insertdisk_jpg, insertdisk_jpg_len, xpos, ypos );
+    while( !SID_FS.begin() )
+    {
+      // TODO: make a more fancy animation
+      toggle = !toggle;
+      tft.setTextColor( toggle ? TFT_BLACK : TFT_WHITE );
+      tft.drawFastHLine( xpos+15, ypos+22, 4, toggle ? TFT_RED : TFT_ORANGE );
+      delay( toggle ? 300 : 500 );
+      // go to sleep after a minute, no need to hammer the SD Card reader
+      if( lastcheck + 60000 < millis() ) {
+        // TODO: deep sleep
+      }
+    }
+    tft.fillRect( xpos, ypos, 88, 26, C64_DARKBLUE );
+  }
+
+
+
+  int32_t explore()
+  {
     randomSeed(analogRead(0)); // for random song
+
+    loadingScreen();
 
     spriteScroll.setPsram(false);
     spriteScroll.setFont( &Font8x8C64 );
@@ -499,10 +485,10 @@ struct SIDExplorer
     tft.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
     tft.drawString( "Checking MD5", tft.width()/2, tft.height()/2 );
 
-    MD5Config.progressCb = &MD5ProgressCb;
+    cfg->progressCb = &MD5ProgressCb;
 
     sidPlayer = new SIDTunesPlayer( 1 );
-    sidPlayer->setMD5Parser( &MD5Config );
+    sidPlayer->setMD5Parser( cfg );
 
     sidPlayer->setEventCallback( sidCallback );
     sidPlayer->begin( SID_CLOCK, SID_DATA, SID_LATCH, SID_CLOCK_PIN );
@@ -515,7 +501,7 @@ struct SIDExplorer
     sidPlayer->SetMaxVolume( maxVolume );
 
     if( myFolder.size() == 0 ) {
-      checkArchives();
+      checkArchive();
     }
 /*
 
@@ -557,6 +543,7 @@ struct SIDExplorer
       lastprogress = progress;
       // TODO: show UI Progress
       Serial.printf("Progress: %d%s\n", progress, "%" );
+      UIPrintProgressBar( progress, total );
     }
   }
 
@@ -576,7 +563,7 @@ struct SIDExplorer
           log_w("launching renverVoices task");
           drawHeader( nullptr );
           positionInPlaylist = -1; // make sure the title is displayed
-          xTaskCreatePinnedToCore( drawVoices, "drawVoices", 2048, this, 1, &renderVoicesTaskHandle, SID_PLAYER_CORE/*SID_CPU_CORE*/ ); // will trigger TFT writes
+          xTaskCreatePinnedToCore( drawVoices, "drawVoices", 2048, this, 1, &renderVoicesTaskHandle, /*SID_PLAYER_CORE/*/SID_CPU_CORE ); // will trigger TFT writes
           adsrenabled = true;
         } else {
           // ADSR already running or stopping
@@ -699,7 +686,7 @@ struct SIDExplorer
               case F_SUBFOLDER_NOCACHE:
                 snprintf(folderToScan, 256, "%s", myFolder[itemCursor].path.c_str() );
                 PlayerPrefs.setLastPath( folderToScan );
-                getSortedFolder( fs, folderToScan, maxitems );
+                getSortedFolder( *fs, folderToScan, maxitems );
                 if( myFolder[itemCursor].type == F_PARENT_FOLDER ) {
                   // going up
                   if( folderDepth > 0 ) {
@@ -712,6 +699,21 @@ struct SIDExplorer
                   // going down
                   lastItemCursor[folderDepth] = itemCursor;
                   itemCursor = 0;
+                }
+              break;
+              case F_TOOL_CB:
+                if( sidPlayer->playerrunning ) {
+                  sidPlayer->stopPlayer();
+                  vTaskDelay(100);
+                }
+                Serial.printf("Invoking tool %s\n", myFolder[itemCursor].path.c_str() );
+                if       ( strcmp( myFolder[itemCursor].path.c_str(), "update-md5"         ) == 0 ) {
+                  updateMd5File();
+                } else if( strcmp( myFolder[itemCursor].path.c_str(), "reset-path-cache"   ) == 0 ) {
+                  resetPathCache();
+                } else if( strcmp( myFolder[itemCursor].path.c_str(), "reset-spread-cache" ) == 0 ) {
+                  resetSpreadCache();
+
                 }
               break;
             }
@@ -738,7 +740,7 @@ struct SIDExplorer
             // only when the ".." folder is being selected
             if( myFolder[itemCursor].type == F_PARENT_FOLDER ) {
               Serial.printf("Refresh folder -> regenerate %s Dir List and Songs Cache\n", folderToScan );
-              getSortedFolder( fs, folderToScan, maxitems, true );
+              getSortedFolder( *fs, folderToScan, maxitems, true );
             } else {
               // TODO: show information screen on current selected item
               // folder = show dircache count or suggest creating dircache
@@ -873,6 +875,10 @@ struct SIDExplorer
           sprintf( lineText, "%s", myFolder[i].name.c_str() );
           spriteScroll.drawJpg( iconup_jpg, iconup_jpg_len, 2, yitempos );
           break;
+        case F_TOOL_CB:
+          sprintf( lineText, "%s", myFolder[i].name.c_str() );
+          spriteScroll.drawJpg( icontool_jpg, icontool_jpg_len, 2, yitempos );
+          break;
         case F_SID_FILE:
           String basename = gnu_basename( myFolder[i].path.c_str() );
           sprintf( lineText, "%s", basename.c_str() );
@@ -921,25 +927,128 @@ struct SIDExplorer
   }
 
 
-  void checkArchives()
+  bool getSortedFolder( fs::FS &fs, const char* folderName, size_t maxitems=0, bool force_regen = false ) {
+
+    myFolder.clear();
+
+    if( String( folderName ) != "/"  ) {
+      String dirname = gnu_basename( folderName );
+      String parentFolder = String( folderName ).substring( 0, strlen( folderName ) - (dirname.length()+1) );
+      if( parentFolder == "" ) parentFolder = "/";
+      myFolder.push_back( { String(".."), parentFolder, F_PARENT_FOLDER } );
+    }
+
+    diskTickerWordWrap = 0;
+    diskTickerMsec = millis();
+
+    if( strcmp( folderName, cfg->md5folder ) == 0 ) {
+      // md5 folder tools
+      myFolder.push_back( { "Update MD5",   "update-md5",         F_TOOL_CB } );
+      myFolder.push_back( { "Reset pcache", "reset-path-cache",   F_TOOL_CB } );
+      myFolder.push_back( { "Reset scache", "reset-spread-cache", F_TOOL_CB } );
+      return true;
+    }
+
+    if( !SongCache->scanFolder( fs, folderName, &addFolderElement, &diskTicker, maxitems, force_regen ) ) {
+      log_e("Could not build a list of songs");
+      return false;
+    }
+
+    Serial.printf("Sorting folder: %s\n", folderName  );
+
+    std::sort(myFolder.begin(), myFolder.end(), [](const folderTypeItem &a, const folderTypeItem &b)
+    {
+      if( a.name == b.name )
+        return true;
+      if( b.type == F_PARENT_FOLDER ) return false; // hoist ".."
+      if( b.type == F_FOLDER && a.type == F_PARENT_FOLDER ) return true;
+      if( b.type == F_FOLDER ) return false; // hoist playlist files
+      if( a.type == F_FOLDER ) return true; // hoist playlist files
+      // TODO: sort F_SUBFOLDER and F_SUBFOLDER_NOCACHE separately from F_SID_FILE
+      uint8_t al = a.name.length(), bl = b.name.length(), max = 0;
+      const char *as = a.name.c_str(), *bs = b.name.c_str();
+      bool ret = false;
+      if( al >= bl ) {
+        max = bl;
+        ret = false;
+      } else {
+        max = al;
+        ret = true;
+      }
+      for( uint8_t i=0;i<max;i++ ) {
+        if( as[i] != bs[i] ) return as[i] < bs[i];
+      }
+      return ret;
+    });
+
+    return true;
+  }
+
+
+  void drawToolPage( const char* title )
+  {
+    tft.fillScreen( C64_DARKBLUE );
+    drawHeader( &tft );
+    tft.setTextDatum( MC_DATUM );
+    tft.drawString( title, tft.width()/2, 32 );
+    tft.setTextDatum( TL_DATUM );
+    tft.drawJpg( icontool_jpg, icontool_jpg_len, 4, 4 );
+  }
+
+
+  void resetPathCache()
+  {
+    drawToolPage( "Building hash cache" );
+    cfg->fs->remove( cfg->md5idxpath );
+    sidPlayer->MD5Parser->MD5Index.buildSIDPathIndex( cfg->fs, cfg->md5filepath, cfg->md5idxpath );
+    tft.drawString( "Done!", tft.width()/2, 42 );
+    delay(3000);
+  }
+
+  void resetSpreadCache()
+  {
+    drawToolPage( "Building spread cache" );
+    sidPlayer->MD5Parser->MD5Index.buildSIDHashIndex( cfg->fs, cfg->md5filepath, cfg->md5folder, true );
+    tft.drawString( "Done!", tft.width()/2, 42 );
+    delay(3000);
+  }
+
+  void updateMd5File()
+  {
+    drawToolPage( "Downloading MD5 File" );
+    deInitSprites(); // free some ram
+    if( SidArchiveChecker == NULL )
+      SidArchiveChecker = new SID_Archive_Checker( cfg );
+    SidArchiveChecker->checkMd5File( true );
+    tft.drawString( "Done!", tft.width()/2, 42 );
+    delay(3000);
+    if( SidArchiveChecker->wifi_occured ) {
+      // at this stage the heap is probably too low to do anything else
+      ESP.restart();
+    }
+    initSprites();
+  }
+
+  void checkArchive( bool force_check = false )
   {
 
-    mkdirp( MD5Config.fs, MD5Config.md5filepath ); // from ESP32-Targz: create traversing directories if none exist
+    mkdirp( fs, cfg->md5filepath ); // from ESP32-Targz: create traversing directories if none exist
 
-    if( !getSortedFolder(fs, folderToScan, maxitems ) || !MD5Config.fs->exists( MD5Config.md5filepath ) ) {
+    if( force_check || !getSortedFolder( *fs, folderToScan, maxitems ) || !fs->exists( cfg->md5filepath ) ) {
       // first run ?
       //TODO: confirmation dialog
-      //#ifdef BOARD_HAS_PSRAM
-      if( archives != nullptr ) {
+      if( cfg->archive != nullptr ) {
         deInitSprites(); // free some ram
-        SidArchiveChecker = new SID_Archive_Checker( &MD5Config );
-        SidArchiveChecker->checkArchives( archives, totalelements );
-        // at this stage the heap is probably too low to do anything else
-        //TODO: confirmation dialog
-        ESP.restart();
-        // initSprites();
+        SidArchiveChecker = new SID_Archive_Checker( cfg );
+        SidArchiveChecker->checkArchive();
+        if( SidArchiveChecker->wifi_occured ) {
+          // at this stage the heap is probably too low to do anything else
+          ESP.restart();
+        }
+        initSprites();
+      } else {
+        log_e("No archive to check for .. aborting !");
       }
-      //#endif
     } else {
       //TODO: confirmation dialog
       // give some hints for building the archives ?

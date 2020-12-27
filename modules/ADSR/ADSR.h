@@ -22,7 +22,8 @@
 #include <math.h>
 
 
-class ADSR {
+class ADSR
+{
   public:
     ADSR();
     ~ADSR();
@@ -65,7 +66,8 @@ class ADSR {
     double calcCoef(double rate, double targetRatio);
 };
 
-inline double ADSR::process() {
+inline double ADSR::process()
+{
   switch (state) {
     case env_idle:
       break;
@@ -95,29 +97,34 @@ inline double ADSR::process() {
   return output;
 }
 
-inline void ADSR::gate(int gate) {
+inline void ADSR::gate(int gate)
+{
   if (gate)
     state = env_attack;
   else if (state != env_idle)
     state = env_release;
 }
 
-inline int ADSR::getState() {
+inline int ADSR::getState()
+{
   return state;
 }
 
-inline void ADSR::reset() {
+inline void ADSR::reset()
+{
   state = env_idle;
   output = 0.0;
 }
 
-inline double ADSR::getOutput() {
+inline double ADSR::getOutput()
+{
   return output;
 }
 
 
 
-ADSR::ADSR() {
+ADSR::ADSR()
+{
   reset();
   setAttackRate(0);
   setDecayRate(0);
@@ -127,37 +134,44 @@ ADSR::ADSR() {
   setTargetRatioDR(0.0001);
 }
 
-ADSR::~ADSR() {
+ADSR::~ADSR()
+{
 }
 
-void ADSR::setAttackRate(double rate) {
+void ADSR::setAttackRate(double rate)
+{
   attackRate = rate;
   attackCoef = calcCoef(rate, targetRatioA);
   attackBase = (1.0 + targetRatioA) * (1.0 - attackCoef);
 }
 
-void ADSR::setDecayRate(double rate) {
+void ADSR::setDecayRate(double rate)
+{
   decayRate = rate;
   decayCoef = calcCoef(rate, targetRatioDR);
   decayBase = (sustainLevel - targetRatioDR) * (1.0 - decayCoef);
 }
 
-void ADSR::setReleaseRate(double rate) {
+void ADSR::setReleaseRate(double rate)
+{
   releaseRate = rate;
   releaseCoef = calcCoef(rate, targetRatioDR);
   releaseBase = -targetRatioDR * (1.0 - releaseCoef);
 }
 
-double ADSR::calcCoef(double rate, double targetRatio) {
+double ADSR::calcCoef(double rate, double targetRatio)
+{
   return (rate <= 0) ? 0.0 : exp(-log((1.0 + targetRatio) / targetRatio) / rate);
 }
 
-void ADSR::setSustainLevel(double level) {
+void ADSR::setSustainLevel(double level)
+{
   sustainLevel = level;
   decayBase = (sustainLevel - targetRatioDR) * (1.0 - decayCoef);
 }
 
-void ADSR::setTargetRatioA(double targetRatio) {
+void ADSR::setTargetRatioA(double targetRatio)
+{
   if (targetRatio < 0.000000001)
     targetRatio = 0.000000001;  // -180 dB
   targetRatioA = targetRatio;
@@ -165,7 +179,8 @@ void ADSR::setTargetRatioA(double targetRatio) {
   attackBase = (1.0 + targetRatioA) * (1.0 - attackCoef);
 }
 
-void ADSR::setTargetRatioDR(double targetRatio) {
+void ADSR::setTargetRatioDR(double targetRatio)
+{
   if (targetRatio < 0.000000001)
     targetRatio = 0.000000001;  // -180 dB
   targetRatioDR = targetRatio;

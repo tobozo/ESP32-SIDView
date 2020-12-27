@@ -7,6 +7,7 @@
 #define SID_LATCH 2
 #define SID_CLOCK_PIN 26
 
+// mandatory defines for this app
 #define SID_FS       SD // from fs::FS filesystem <SD.h>
 #define SID_FOLDER   "/sid" // local path on the SD Card, NO TRAILING SLASH, MUST BE A FOLDER
 #define MD5_FOLDER   "/md5" // where all the md5 stuff is stored (db file, cache, index)
@@ -51,9 +52,18 @@
 #include <SidPlayer.h>           // https://github.com/hpwit/SID6581
 
 // MD5FileParser config for SidPlayer
+
+MD5Archive HSVC =
+{
+  "HVSC 74",
+  "https://phpsecu.re/HVSC-74.tar.gz",
+  "HVSC-74"
+};
+
 MD5FileConfig MD5Config =
 {
   &SID_FS,          // SD
+  &HSVC,            // High Voltage SID Collection info
   SID_FOLDER,       // /sid
   MD5_FOLDER,       // /md5
   MD5_FILE,         // /md5/Songlengths.full.md5
@@ -73,8 +83,8 @@ SID_Archive C64MusicGames("C64MusicGames", "https://phpsecu.re/C64MusicGames.tar
 SID_Archive HVSC[3] = { C64MusicGames, C64MusicDemos, C64Musicians };
 */
 
-SID_Archive HVSC74("HVSC 74", "https://phpsecu.re/HVSC-74.tar.gz", "HVSC-74", &MD5Config );
-SID_Archive HVSC[1] = { HVSC74 };
+//SID_Archive HVSC("HVSC 74", "https://phpsecu.re/HVSC-74.tar.gz", "HVSC-74", &MD5Config );
+//SID_Archive HVSC[1] = { HVSC74 };
 
 // load the Player
 #include "modules/UI/SIDViewer.h"

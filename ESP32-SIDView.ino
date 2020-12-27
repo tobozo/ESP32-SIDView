@@ -37,9 +37,11 @@
   Library dependencies (all available from the Arduino Library Manager):
 
   - https://github.com/hpwit/SID6581
+  - https://github.com/lovyan03/LovyanGFX
+  - https://github.com/tobozo/ESP32-Targz
   - https://github.com/tobozo/ESP32-Chimera-Core
   - https://github.com/tobozo/M5Stack-SD-Updater
-  - https://github.com/tobozo/ESP32-Targz
+
 
 \*/
 
@@ -61,11 +63,8 @@ void setup()
 
   Serial.printf("SID Player UI: %d*%d\n", tft.width(), tft.height() );
 
-  tft.fillScreen( C64_DARKBLUE ); // Commodore64 blueish
-  tft.drawJpg( header128x32_jpg, header128x32_jpg_len, 0, 0 );
-
-  size_t totalsidpackages = sizeof( HVSC ) / sizeof( HVSC[0] );
-  SIDExplorer *mySIDExplorer = new SIDExplorer( SID_FS, HVSC, totalsidpackages );
+  //size_t totalsidpackages = sizeof( HVSC ) / sizeof( HVSC[0] );
+  SIDExplorer *mySIDExplorer = new SIDExplorer( &MD5Config/*, HVSC, totalsidpackages*/ );
   mySIDExplorer->explore();
 
 }

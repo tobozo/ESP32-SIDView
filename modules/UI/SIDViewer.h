@@ -191,7 +191,7 @@ static void drawVoices( void* param = NULL )
   initSprites();
   spriteText.setFont( &Font8x8C64 );
   spriteText.setTextSize(1);
-  tft.fillRect(0, 16, tft.width(), 8, C64_DARKBLUE ); // clear area under the logo
+  tft.fillRect(0, 16, tft.width(), 16, C64_DARKBLUE ); // clear area under the logo
 
   while(1) {
     if( stoprender ) break;

@@ -80,8 +80,8 @@ static void UIPrintProgressBar( float progress, float total=100.0 )
     tft.setTextDatum( MC_DATUM );
     tft.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
     tft.drawString( progressStr, tft.width()/2, tft.height()/2 );
-    tft.setCursor( tft.height()-(tft.fontHeight()+2), 10 );
-    tft.printf("    heap: %6d    ", ESP.getFreeHeap() );
+    //tft.setCursor( tft.height()-(tft.fontHeight()+2), 10 );
+    //tft.printf("    heap: %6d    ", ESP.getFreeHeap() );
   }
 }
 static void UIPrintGzProgressBar( uint8_t progress )
@@ -111,9 +111,11 @@ static void UIPrintTarProgress(const char* format, ...)
 
 struct SID_Archive
 {
+  /*
   const char* name; // archive name
   const char* url; // url to the gzip file
   const char* path; // corresponding absolute path in the md5 file
+  */
   MD5FileConfig *cfg;
 
   char *tgzFileName;
@@ -126,7 +128,7 @@ struct SID_Archive
     free( cachePath   );
   }
 
-  SID_Archive( const char* n, const char* u, const char* p, MD5FileConfig *c) : name(n), url(u), path(p), cfg(c)
+  SID_Archive( /*const char* n, const char* u, const char* p,*/ MD5FileConfig *c) : /*name(n), url(u), path(p),*/ cfg(c)
   {
     #ifdef BOARD_HAS_PSRAM
       psramInit();
@@ -134,13 +136,13 @@ struct SID_Archive
     tgzFileName = (char*)sid_calloc( 256, sizeof( char ) );
     sidRealPath = (char*)sid_calloc( 256, sizeof( char ) );
     cachePath   = (char*)sid_calloc( 256, sizeof( char ) );
-    if( tgzFileName == NULL || sidRealPath == NULL  || cachePath   == NULL ) {
+    if( tgzFileName == NULL || sidRealPath == NULL || cachePath == NULL || cfg->archive == NULL ) {
       log_e("Unable to init SID_Archive, aborting !");
       return;
     }
-    snprintf( tgzFileName, 256, "/%s.tar.gz", name );
-    snprintf( sidRealPath, 256, "%s/.%s.expanded", cfg->sidfolder, path );
-    snprintf( cachePath,   256, "/tmp/%s.sidcache", name );
+    snprintf( tgzFileName, 256, "/%s.tar.gz", cfg->archive->name );
+    snprintf( sidRealPath, 256, "%s/.%s.expanded", cfg->sidfolder, cfg->archive->path );
+    snprintf( cachePath,   256, "/tmp/%s.sidcache", cfg->archive->name );
     PrintProgressBar = &UIPrintProgressBar;
   };
 
@@ -157,22 +159,22 @@ struct SID_Archive
 
   bool expand()
   {
-    UIPrintTitle( name, "  Expanding Tgz  " );
+    UIPrintTitle( cfg->archive->name, "  Expanding Tgz  " );
+    setExpanded( false ); // mark the archive as not expanded
     setTarVerify( false ); // false = faster, true = more reliable
     setLoggerCallback( targzNullLoggerCallback ); // comment this out to enable debug (spammy)
-    //setTarProgressCallback( targzNullProgressCallback ); // tar handle per-file progress
-    setTarMessageCallback( UIPrintTarProgress ); // tar handles filenames
-    setProgressCallback( UIPrintGzProgressBar ); // gzip handles progress
+    setTarMessageCallback( UIPrintTarProgress ); // show tar filenames
+    setProgressCallback( UIPrintGzProgressBar ); // show overall gzip progress
 
     const char *outfolder = String( String( cfg->sidfolder ) + String("/") ).c_str();
-    Serial.printf("Will attempt to expand archive %s to folder %s\n", name, cfg->sidfolder );
+    Serial.printf("Will attempt to expand archive %s to folder %s\n", cfg->archive->name, cfg->sidfolder );
 
     if(! tarGzExpander( SID_FS, tgzFileName, SID_FS, cfg->sidfolder, nullptr ) ) {
       Serial.printf("tarGzExpander failed with return code #%d\n", tarGzGetError() );
       return false;
     }
     Serial.printf("Success!\n");
-    setExpanded();
+    setExpanded( true ); // expanding worked fine, mark the archive as expanded
     return true;
   }
 
@@ -186,10 +188,15 @@ struct SID_Archive
     return cfg->fs->exists( sidRealPath );
   }
 
-  void setExpanded()
+  void setExpanded( bool toggle = true )
   {
-    if( cfg->fs->exists( sidRealPath ) ) {
-      log_w("Already expanded!");
+    if( ! toggle ) { // set unexpanded
+      if( cfg->fs->exists( sidRealPath ) ) {
+        cfg->fs->remove( sidRealPath );
+        log_w("Archive marked a *not* expanded");
+      } else {
+        log_w("Archive wasn't marked as expanded, nothing to do");
+      }
       return;
     }
     fs::File expansionProofFile = cfg->fs->open( sidRealPath, FILE_WRITE );
@@ -216,9 +223,9 @@ struct SID_Archive
 
     mkdirp( cfg->fs, tgzFileName ); // from ESP32-Targz: create traversing directories if none exist
 
-    UIPrintTitle( name, "   Downloading   " );
+    UIPrintTitle( cfg->archive->name, "   Downloading   " );
     PrintProgressBar = &UIPrintProgressBar;
-    if( !wget( url, *cfg->fs, tgzFileName ) ) {
+    if( !wget( cfg->archive->url, *cfg->fs, tgzFileName ) ) {
       Serial.printf("Failed to download %s :-(\n", tgzFileName);
       return false;
     } else {
@@ -328,63 +335,95 @@ struct SID_Archive_Checker
 {
 
   MD5FileConfig *cfg;
+  SID_Archive *archive = nullptr;
+  bool wifi_occured = false;
 
   SID_Archive_Checker( MD5FileConfig *c ) : cfg(c) {
+
+    archive = new SID_Archive( cfg );
+
     Serial.printf("SID Archive Checker loaded config:\n  SID_FOLDER=%s\n  MD5_PATH=%s\n  MD5_IDX=%s\n  MD5_URL=%s\n",
-      cfg->sidfolder,   // /sid"
-      cfg->md5filepath, // /md5/Songlengths.full.md5
-      cfg->md5idxpath,  // /md5/Songlengths.full.md5.idx
-      cfg->md5url       // https://www.prg.dtu.dk/HVSC/C64Music/DOCUMENTS/Songlengths.md5
+      cfg->sidfolder,   // ex:  /sid
+      cfg->md5filepath, // ex:  /md5/Songlengths.full.md5
+      cfg->md5idxpath,  // ex:  /md5/Songlengths.full.md5.idx
+      cfg->md5url       // ex:  https://www.prg.dtu.dk/HVSC/C64Music/DOCUMENTS/Songlengths.md5
     );
   }
 
-  void checkArchives( SID_Archive* archives, size_t totalsidpackages )
+  void checkArchive()
   {
-    Serial.printf("SID Archive Checker received %d packages to check\n", totalsidpackages );
+    Serial.println("Entering SID Archive Checker");
+
+    checkMd5File();
+    checkGzFile();
+    // now turn off wifi as it ate more than 80Kb ram
+    if( wifiConnected ) {
+      wifiOff();
+    }
+    checkGzExpand();
+
+    Serial.println("Leaving SID Archive Checker");
+  }
+
+
+  bool checkGzFile( bool force = false )
+  {
     // first pass, download all things
-    for( int i=0; i<totalsidpackages; i++ ) {
-      if( !archives[i].exists() ) {
-        if( !archives[i].download() ) {
-          Serial.printf("Downloading of %s failed, deleting damaged or empty file\n", archives[i].tgzFileName );
-          cfg->fs->remove( archives[i].tgzFileName );
+    if( archive != nullptr ) {
+      if( !archive->exists() ) {
+        if( !wifiConnected ) stubbornConnect(); // go online
+        wifi_occured = true;
+        if( !archive->download() ) {
+          Serial.printf("Downloading of %s failed, deleting damaged or empty file\n", archive->tgzFileName );
+          cfg->fs->remove( archive->tgzFileName );
+          return false;
         }
       }
+      return true;
     }
+    return false;
+  }
 
+  bool checkGzExpand( bool force = false )
+  {
+    // expand archives
+    if( archive != nullptr ) {
+      if( archive->exists() ) {
+        if( force || !archive->isExpanded() ) {
+          if( !archive->expand() ) {
+            Serial.printf("Expansion of %s failed, please delete the %s folder and %s archive manually\n", cfg->archive->name, archive->sidRealPath, archive->tgzFileName );
+            return false;
+          }
+        } else {
+          Serial.printf("Archive %s looks healthy\n", cfg->archive->name );
+        }
+        return true;
+      } else {
+        Serial.printf("Archive %s is missing\n", cfg->archive->name );
+      }
+    }
+    return false;
+  }
+
+  bool checkMd5File( bool force = false )
+  {
     // also download the MD5 checksums file containing song lengths
-    if( ! cfg->fs->exists( cfg->md5filepath ) ) {
-
-      if( !wifiConnected ) stubbornConnect();
-
+    if( force || !cfg->fs->exists( cfg->md5filepath ) ) {
       mkdirp( cfg->fs, cfg->md5filepath ); // from ESP32-Targz: create traversing directories if none exist
-
+      if( !wifiConnected ) stubbornConnect(); // go online
+      wifi_occured = true;
       if( !wget( cfg->md5url, *cfg->fs, cfg->md5filepath ) ) {
         Serial.println("Failed to download Songlengths.full.md5 :-(");
+        return false;
       } else {
         Serial.println("Downloaded song lengths successfully");
       }
     }
-
-    // now turn off wifi as it ate more than 80Kb ram
-    if( wifiConnected ) wifiOff();
-
-    // expand archives
-    for( int i=0; i<totalsidpackages; i++ ) {
-      if( archives[i].exists() ) {
-        if( !archives[i].isExpanded() ) {
-          if( !archives[i].expand() ) {
-            Serial.printf("Expansion of %s failed, please delete the %s folder and %s archive manually\n", archives[i].name, archives[i].sidRealPath, archives[i].tgzFileName );
-          }
-        } else {
-          Serial.printf("Archive %s looks healthy\n", archives[i].name );
-        }
-      } else {
-        Serial.printf("Archive %s is missing\n", archives[i].name );
-      }
-    }
-
-    Serial.println("Leaving SID Archive Checker");
+    return true;
   }
+
+
+
 
 };
 
