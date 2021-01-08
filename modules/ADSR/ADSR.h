@@ -27,19 +27,20 @@ class ADSR
   public:
     ADSR();
     ~ADSR();
-    double process();
-    double getOutput();
+    float process();
+    float getOutput();
     int getState();
     void gate(int on);
-    void setAttackRate(double rate);
-    void setDecayRate(double rate);
-    void setReleaseRate(double rate);
-    void setSustainLevel(double level);
-    void setTargetRatioA(double targetRatio);
-    void setTargetRatioDR(double targetRatio);
+    void setAttackRate(float rate);
+    void setDecayRate(float rate);
+    void setReleaseRate(float rate);
+    void setSustainLevel(float level);
+    void setTargetRatioA(float targetRatio);
+    void setTargetRatioDR(float targetRatio);
     void reset();
 
-    enum envState {
+    enum envState
+    {
       env_idle = 0,
       env_attack,
       env_decay,
@@ -49,24 +50,24 @@ class ADSR
 
   protected:
     int state;
-    double output;
-    double attackRate;
-    double decayRate;
-    double releaseRate;
-    double attackCoef;
-    double decayCoef;
-    double releaseCoef;
-    double sustainLevel;
-    double targetRatioA;
-    double targetRatioDR;
-    double attackBase;
-    double decayBase;
-    double releaseBase;
+    float output;
+    float attackRate;
+    float decayRate;
+    float releaseRate;
+    float attackCoef;
+    float decayCoef;
+    float releaseCoef;
+    float sustainLevel;
+    float targetRatioA;
+    float targetRatioDR;
+    float attackBase;
+    float decayBase;
+    float releaseBase;
 
-    double calcCoef(double rate, double targetRatio);
+    float calcCoef(float rate, float targetRatio);
 };
 
-inline double ADSR::process()
+inline float ADSR::process()
 {
   switch (state) {
     case env_idle:
@@ -116,7 +117,7 @@ inline void ADSR::reset()
   output = 0.0;
 }
 
-inline double ADSR::getOutput()
+inline float ADSR::getOutput()
 {
   return output;
 }
@@ -138,39 +139,39 @@ ADSR::~ADSR()
 {
 }
 
-void ADSR::setAttackRate(double rate)
+void ADSR::setAttackRate(float rate)
 {
   attackRate = rate;
   attackCoef = calcCoef(rate, targetRatioA);
   attackBase = (1.0 + targetRatioA) * (1.0 - attackCoef);
 }
 
-void ADSR::setDecayRate(double rate)
+void ADSR::setDecayRate(float rate)
 {
   decayRate = rate;
   decayCoef = calcCoef(rate, targetRatioDR);
   decayBase = (sustainLevel - targetRatioDR) * (1.0 - decayCoef);
 }
 
-void ADSR::setReleaseRate(double rate)
+void ADSR::setReleaseRate(float rate)
 {
   releaseRate = rate;
   releaseCoef = calcCoef(rate, targetRatioDR);
   releaseBase = -targetRatioDR * (1.0 - releaseCoef);
 }
 
-double ADSR::calcCoef(double rate, double targetRatio)
+float ADSR::calcCoef(float rate, float targetRatio)
 {
   return (rate <= 0) ? 0.0 : exp(-log((1.0 + targetRatio) / targetRatio) / rate);
 }
 
-void ADSR::setSustainLevel(double level)
+void ADSR::setSustainLevel(float level)
 {
   sustainLevel = level;
   decayBase = (sustainLevel - targetRatioDR) * (1.0 - decayCoef);
 }
 
-void ADSR::setTargetRatioA(double targetRatio)
+void ADSR::setTargetRatioA(float targetRatio)
 {
   if (targetRatio < 0.000000001)
     targetRatio = 0.000000001;  // -180 dB
@@ -179,7 +180,7 @@ void ADSR::setTargetRatioA(double targetRatio)
   attackBase = (1.0 + targetRatioA) * (1.0 - attackCoef);
 }
 
-void ADSR::setTargetRatioDR(double targetRatio)
+void ADSR::setTargetRatioDR(float targetRatio)
 {
   if (targetRatio < 0.000000001)
     targetRatio = 0.000000001;  // -180 dB

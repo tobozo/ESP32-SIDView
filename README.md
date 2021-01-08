@@ -41,7 +41,7 @@ Usage:
 - Flash your ESP32 with the sketch
 - Deploy the [HVSC archive](https://hvsc.c64.org/) on the SD Card by either:
   - Letting the ESP32-SIDViewer download and unzip it (this can take up to 4 hours and may require to setup the WiFi SSID/PASS in `config.h`)
-  - Manually copying the `MUSICIANS`, `GAMES` and `DEMO` folders from the HVSC arvhice into the `/sid` folder and the `Songlengths.md5` file into the `/md5` folder.
+  - Manually copying the `MUSICIANS`, `GAMES` and `DEMO` folders from the HVSC archive into the `/sid` folder and the `Songlengths.md5` file into the `/md5` folder.
 - Let the ESP32 do the indexing of the MD5 file, this is only a one time operation.
 
 Credits:

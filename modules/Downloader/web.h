@@ -32,21 +32,23 @@
 #ifndef _SID_HVSC_DOWNLOADER_H_
 #define _SID_HVSC_DOWNLOADER_H_
 
-#include <WiFi.h>
-#include <WiFiClient.h>
-#include <WebServer.h>
-#include <ESPmDNS.h>
-#include <WiFiUdp.h>
+//#include <WiFi.h>
+//#include <WiFiClient.h>
+//#include <WebServer.h>
+//#include <ESPmDNS.h>
+//#include <WiFiUdp.h>
 //#include <ArduinoOTA.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
-HTTPClient http;
+
+HTTPClient http; // this sucks ~40% of program storage space
 
 bool webServerRunning = false;
 bool wifiConnected = false;
 
 /*
-void OTASetup() {
+void OTASetup()
+{
 
   // Port defaults to 3232
   // ArduinoOTA.setPort(3232);
@@ -184,6 +186,7 @@ static bool /*yolo*/wget( const char* url, fs::FS &fs, const char* path )
     http.end();
     if( newlocation != "" ) {
       log_w("Found 302/301 location header: %s", newlocation.c_str() );
+      // delete client;
       return wget( newlocation.c_str(), fs, path );
     } else {
       log_e("Empty redirect !!");
@@ -205,8 +208,6 @@ static bool /*yolo*/wget( const char* url, fs::FS &fs, const char* path )
     return false;
   }
 
-  //uint8_t buff[4096] = { 0 };
-  //size_t sizeOfBuff = sizeof(buff);
   size_t sizeOfBuff = 4096;
   uint8_t *buff = new uint8_t[sizeOfBuff];//
 
@@ -214,7 +215,9 @@ static bool /*yolo*/wget( const char* url, fs::FS &fs, const char* path )
   int bytesLeftToDownload = len;
   int bytesDownloaded = 0;
 
-  //UI.PrintMessage("Download in progress...");
+  if( PrintProgressBar ) {
+    PrintProgressBar( 0, 100.0 );
+  }
 
   while(http.connected() && (len > 0 || len == -1)) {
     size_t size = stream->available();

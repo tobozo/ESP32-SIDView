@@ -47,6 +47,7 @@
 
 #include "config.h"
 
+SIDExplorer* SidViewer = nullptr;
 
 void setup()
 {
@@ -61,16 +62,13 @@ void setup()
     checkSDUpdater( SID_FS, MENU_BIN, 1000 ); // load existing (not this sketch) menu.bin
   #endif
 
-  Serial.printf("SID Player UI: %d*%d\n", tft.width(), tft.height() );
-
-  //size_t totalsidpackages = sizeof( HVSC ) / sizeof( HVSC[0] );
-  SIDExplorer *mySIDExplorer = new SIDExplorer( &MD5Config/*, HVSC, totalsidpackages*/ );
-  mySIDExplorer->explore();
-
+  Serial.printf("SID Player UI: %d*%d\n", M5.Lcd.width(), M5.Lcd.height() );
+  SidViewer = new SIDExplorer( &MD5Config );
 }
 
 
 void loop()
 {
+  SidViewer->explore();
   vTaskDelete( NULL );
 }
