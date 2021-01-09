@@ -19,7 +19,7 @@
 
 
 //#define SD_UPDATABLE          // comment this out to disable SD-Updater ( disabling saves ~3% of program storage space)
-#define SID_DOWNLOAD_ARCHIVES // comment this out if the archives are already on the SD Card ( disabling saves ~42% of program storage space)
+//#define SID_DOWNLOAD_ARCHIVES // comment this out if the archives are already on the SD Card ( disabling saves ~42% of program storage space and 40Kb ram)
 // Use this if your ESP has never connected to your WiFi before
 //#define WIFI_SSID "my-wifi-ssid"
 //#define WIFI_PASS "my-wifi-password"
