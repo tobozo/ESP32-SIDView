@@ -60,7 +60,11 @@ void setup()
     setAssertTrigger( &myAssertStartUpdateFromButton ); // use my own buttons combination at boot
     // checkMenuStickyPartition(); // copy self to SD Card as "/menu.bin" and OTA1 partition
     checkSDUpdater( SID_FS, MENU_BIN, 1000 ); // load existing (not this sketch) menu.bin
+    M5.sd_begin();
+    delay(300);
   #endif
+
+
 
   Serial.printf("SID Player UI: %d*%d\n", M5.Lcd.width(), M5.Lcd.height() );
   SidViewer = new SIDExplorer( &MD5Config );
