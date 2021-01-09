@@ -122,8 +122,9 @@ class SIDExplorer
     MD5FileConfig    *cfg = nullptr;
     SID_Meta_t       *song = nullptr;
     fs::FS           *fs = nullptr;
-    //M5Display        *sidLcd = nullptr;
     TFT_eSprite      *spriteText = nullptr;
+    TFT_eSprite      *spriteHeader = nullptr;
+    TFT_eSprite      *spritePaginate = nullptr;
     uint16_t         *sptr = nullptr; // pointer to the sprite
     char             *folderToScan = nullptr;
     char             *lineText = nullptr;
@@ -145,9 +146,6 @@ class SIDExplorer
     uint16_t pageTotal   = 0;
     uint16_t pageStart   = 0;
     uint16_t pageEnd     = 0;
-    uint16_t ydirnamepos = 0;
-    uint16_t ydislistpos = 0;
-    uint16_t yitempos    = 1;
 
     loopmode       playerloopmode     = SID_LOOP_OFF;
 
@@ -177,7 +175,6 @@ class SIDExplorer
     void prevInPlaylist();
 
     bool getPaginatedFolder( const char* folderName, size_t offset = 0, size_t maxitems=0, bool force_regen = false );
-    bool getSortedFolder( const char* folderName, size_t maxitems=0, bool force_regen = false );
 
     void setUIPlayerMode( loopmode mode );
     void setupPagination();
@@ -236,7 +233,7 @@ class SIDExplorer
       if( scrollwidth < tft.textWidth( songNameStr ) ) {
         //Serial.println("Reset scroll");
         if( !scrolltext ) {
-          scrollableText->setup( songNameStr, 0, 32, scrollwidth, tft.fontHeight(), 300, true );
+          scrollableText->setup( songNameStr, 0, 32, scrollwidth, tft.fontHeight(), 30, true );
           scrolltext = true;
         }
       } else {
@@ -498,7 +495,7 @@ class SIDExplorer
       static auto lastTickerMsec = millis();
       static char lineText[32] = {0};
 
-      if( diskTickerWordWrap++%10==0 || millis() - lastTickerMsec > 500 ) { // animate "scanning folder"
+      if( /*diskTickerWordWrap++%10==0 ||*/ millis() - lastTickerMsec > 500 ) { // animate "scanning folder"
         tft.setTextDatum( TR_DATUM );
         tft.setFont( &Font8x8C64 );
         tft.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );

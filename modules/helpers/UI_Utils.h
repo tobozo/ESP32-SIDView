@@ -50,8 +50,9 @@ class ScrollableItem
 
     bool scroll = false;
     bool invert = true;
+    bool smooth = true;
 
-    void setup( const char* _text, uint16_t _xpos, uint16_t _ypos, uint16_t _width, uint16_t _height, unsigned long _delay=300, bool _invert=true )
+    void setup( const char* _text, uint16_t _xpos, uint16_t _ypos, uint16_t _width, uint16_t _height, unsigned long _delay=300, bool _invert=true, bool _smooth=true )
     {
       snprintf( text, 255, " %s ", _text );
       xpos   = _xpos;
@@ -61,6 +62,7 @@ class ScrollableItem
       last   = millis()-_delay;
       delay  = _delay;
       invert = _invert;
+      smooth = _smooth;
       scroll = true;
       scrollSprite->setPsram( false );
     }
@@ -69,10 +71,57 @@ class ScrollableItem
     {
       if(!scroll) return;
       if( scrollSprite == nullptr ) return;
-      if( millis()-last < delay ) return;
-
+      if( millis()-last < delay )  return;
       last = millis();
 
+      if( smooth ) {
+        scrollSmooth();
+      } else {
+        scrollUgly();
+      }
+
+    }
+
+
+    void scrollSmooth()
+    {
+
+      scrollSprite->setFont( &Font8x8C64 );
+      uint8_t charwidth = scrollSprite->textWidth( "0" );
+      scrollSprite->createSprite( width+charwidth, height );
+      scrollSprite->setPaletteColor( 0, C64_DARKBLUE );
+      scrollSprite->setPaletteColor( 1, C64_LIGHTBLUE );
+
+      if( invert ) {
+        scrollSprite->setTextColor( C64_DARKBLUE, C64_LIGHTBLUE );
+      } else {
+        scrollSprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+      }
+
+      scrollSprite->fillSprite( C64_DARKBLUE );
+      scrollSprite->setTextDatum( TL_DATUM );
+
+      char c = text[0];
+      size_t len = strlen( text );
+
+      if( smooth_offset == 7 ) {
+        memmove( text, text+1, len-1 );
+        text[len-1] = c;
+        text[len] = '\0';
+        smooth_offset = 0;
+      } else {
+        smooth_offset++;
+      }
+
+      scrollSprite->drawString( text, -smooth_offset, 0 );
+      scrollSprite->pushSprite( xpos, ypos );
+
+      scrollSprite->deleteSprite();
+    }
+
+
+    void scrollUgly()
+    {
       scrollSprite->createSprite( width, height );
       scrollSprite->setPaletteColor( 0, C64_DARKBLUE );
       scrollSprite->setPaletteColor( 1, C64_LIGHTBLUE );
@@ -100,6 +149,7 @@ class ScrollableItem
       scrollSprite->deleteSprite();
     }
 
+
   private:
 
     char text[256];
@@ -109,9 +159,9 @@ class ScrollableItem
     uint16_t height = 0;
     unsigned long last = millis();
     unsigned long delay = 300; // milliseconds
+    uint8_t smooth_offset = 0;
 
     TFT_eSprite *scrollSprite = new TFT_eSprite( &tft );
-
 
 };
 

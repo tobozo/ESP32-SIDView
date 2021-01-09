@@ -64,6 +64,8 @@ SIDExplorer::SIDExplorer( MD5FileConfig *_cfg ) : cfg(_cfg)
   spriteWidth     = tft.width();
   spriteHeight    = tft.height();
   spriteText      = new TFT_eSprite( &tft );
+  spriteHeader    = new TFT_eSprite( &tft );
+  spritePaginate  = new TFT_eSprite( &tft );
 
   for( int i=0; i<3; i++ ) {
     oscViews[i]   = new OscilloView( VOICE_WIDTH, VOICE_HEIGHT );
@@ -78,6 +80,14 @@ SIDExplorer::SIDExplorer( MD5FileConfig *_cfg ) : cfg(_cfg)
   spriteText->setPsram(false);
   spriteText->setFont( &Font8x8C64 );
   spriteText->setTextSize(1);
+
+  spriteHeader->setPsram(false);
+  spriteHeader->setFont( &Font8x8C64 );
+  spriteHeader->setTextSize(1);
+
+  spritePaginate->setPsram(false);
+  spritePaginate->setFont( &Font8x8C64 );
+  spritePaginate->setTextSize(1);
 
   lineHeight         = spriteText->fontHeight()+2;
   minScrollableWidth = spriteWidth - 14;
@@ -115,19 +125,20 @@ int32_t SIDExplorer::explore()
     checkArchive();
   }
 
+  inactive_delay = 5000;
+
   while( !exitloop ) {
 
-    log_d("[%d] Setting up pagination", ESP.getFreeHeap() );
+    log_v("[%d] Setting up pagination", ESP.getFreeHeap() );
     setupPagination(); // handle pagination
-    log_d("[%d] Drawing paginated", ESP.getFreeHeap() );
+    log_v("[%d] Drawing paginated", ESP.getFreeHeap() );
     drawPaginaged();   // draw page
 
     explorer_needs_redraw = false;
     adsrenabled = false;
     inactive_since = millis();
-    inactive_delay = 5000;
 
-    log_d("[%d] entering loop", ESP.getFreeHeap() );
+    log_v("[%d] entering loop", ESP.getFreeHeap() );
 
     while( !explorer_needs_redraw ) { // wait for button activity
       handleAutoPlay();
@@ -146,6 +157,7 @@ void SIDExplorer::handleAutoPlay()
     switch( nextSIDEvent ) {
       case SID_START_PLAY:
         nextInPlaylist();
+        inactive_delay = 100;
       break;
       default:
       break;
@@ -208,6 +220,7 @@ void SIDExplorer::processHID()
         else itemCursor = 0;
         explorer_needs_redraw = true;
         stoprender = true;
+        inactive_delay = 5000;
         delay(10);
       break;
       case 0x02: // up
@@ -215,6 +228,7 @@ void SIDExplorer::processHID()
         else itemCursor = myVirtualFolder->size()-1;
         explorer_needs_redraw = true;
         stoprender = true;
+        inactive_delay = 5000;
         delay(10);
       break;
       case 0x04: // right
@@ -224,6 +238,7 @@ void SIDExplorer::processHID()
             case F_PLAYLIST: nextInPlaylist(); break;
             default: /* SHOULD NOT BE THERE */; break;
           }
+          inactive_delay = 100;
         }
       break;
       case 0x08: // left
@@ -233,6 +248,7 @@ void SIDExplorer::processHID()
             case F_PLAYLIST: prevInPlaylist(); break;
             default: /* SHOULD NOT BE THERE */; break;
           }
+          inactive_delay = 100;
         }
       break;
       break;
@@ -245,23 +261,27 @@ void SIDExplorer::processHID()
               sidPlayer->setLoopMode( SID_LOOP_ON );
               if( sidPlayer->getInfoFromSIDFile( currentPath ) ) {
                 sidPlayer->playSID();
+                inactive_delay = 100;
               }
-              inactive_since = millis() - inactive_delay;
+
+              //inactive_since = millis() - inactive_delay;
             break;
             case F_PLAYLIST:
               sidPlayer->setLoopMode( SID_LOOP_OFF );
               if( SongCache->getInfoFromCacheItem( currentPath, 0 ) ) {
                 // playing first song in this cache
                 sidPlayer->playSID();
+                inactive_delay = 100;
               }
-              inactive_since = millis() - inactive_delay;
+
+              //inactive_since = millis() - inactive_delay;
             break;
             case F_PARENT_FOLDER:
             case F_SUBFOLDER:
             case F_SUBFOLDER_NOCACHE:
               snprintf(folderToScan, 256, "%s", currentPath );
               PlayerPrefs.setLastPath( folderToScan );
-              getSortedFolder( folderToScan, maxitems );
+              getPaginatedFolder( folderToScan, 0, maxitems );
               if( itemCursor==0 && currentBrowsingType == F_PARENT_FOLDER ) {
                 // going up
                 if( folderDepth > 0 ) {
@@ -276,6 +296,7 @@ void SIDExplorer::processHID()
                 itemCursor = 0;
               }
               explorer_needs_redraw = true;
+              inactive_delay = 5000;
             break;
             case F_TOOL_CB:
               sidPlayer->kill();
@@ -286,12 +307,13 @@ void SIDExplorer::processHID()
                 resetPathCache();
               } else if( strcmp( currentPath, "reset-spread-cache" ) == 0 ) {
                 resetSpreadCache();
-
               }
+              inactive_delay = 5000;
             break;
           }
         } else {
           sidPlayer->stop();
+          inactive_delay = 5000;
           vTaskDelay(100);
         }
         explorer_needs_redraw = true;
@@ -306,15 +328,17 @@ void SIDExplorer::processHID()
           };
           PlayerPrefs.setLoopMode( playerloopmode ); // save to NVS
           sidPlayer->setLoopMode( playerloopmode );
+          inactive_delay = 100;
         } else {
           // only when the ".." folder is being selected
           if( currentBrowsingType == F_PARENT_FOLDER ) {
             log_d("Refresh folder -> regenerate %s Dir List and Songs Cache", folderToScan );
             delete( sidPlayer->MD5Parser );
             sidPlayer->MD5Parser = NULL;
-            getSortedFolder( folderToScan, maxitems, true );
+            getPaginatedFolder( folderToScan, 0, maxitems, true );
             sidPlayer->setMD5Parser( cfg );
             explorer_needs_redraw = true;
+            inactive_delay = 5000;
           } else {
             // TODO: show information screen on current selected item
             // folder = show dircache count or suggest creating dircache
@@ -341,6 +365,7 @@ void SIDExplorer::processHID()
       break;
       default: // simultaneous buttons push ?
         log_w("Unhandled button combination: %X", resp );
+        inactive_delay = 5000;
       break;
 
     }
@@ -397,9 +422,6 @@ void SIDExplorer::setupPagination()
     lastpush = millis();
   }
 
-  ydirnamepos = lineHeight*1.5 + 2;
-  ydislistpos = ydirnamepos + lineHeight*1.5;
-
   int ispaginated = (pageStart >= itemsPerPage || pageEnd-pageStart < itemsPerPage) ? 1 : 0;
 
   // cap last page
@@ -414,106 +436,114 @@ void SIDExplorer::setupPagination()
 void SIDExplorer::drawPaginaged()
 {
 
-  tft.startWrite();
+  int HeaderHeight = 16;
+  int spriteYpos   = HeaderHeight;
+  const uint16_t ydislistpos = lineHeight*1.5;
 
-  tft.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
-  tft.fillScreen( C64_DARKBLUE );
-  tft.setTextWrap( false );
-  tft.setTextDatum( TC_DATUM );
-  tft.setFont( &Font8x8C64 );
+  sptr = (uint16_t*)spritePaginate->createSprite(tft.width(), tft.height()-HeaderHeight );
+  if( !sptr ) {
+    log_e("Unable to create sprite for pagination");
+  }
+  spriteHeight = spritePaginate->height(); // for bottom-alignment
 
-  //tft.drawString( "-=SID Explorer=-", spriteWidth /2, 2 );
-  drawHeader();
+  //tft.startWrite();
 
-  tft.setTextDatum( TL_DATUM );
+  spritePaginate->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+  spritePaginate->fillSprite( C64_DARKBLUE );
+  spritePaginate->setTextWrap( false );
+  spritePaginate->setTextDatum( TC_DATUM );
+  spritePaginate->setFont( &Font8x8C64 );
+
+  spritePaginate->setTextDatum( TL_DATUM );
 
   folderDepth = 0;
   for( int i=0; i<strlen(folderToScan); i++ ) {
     if( folderToScan[i] == '/' ) folderDepth++;
   }
 
-  if( tft.textWidth( folderToScan )+2 > spriteWidth  ) {
+  if( spritePaginate->textWidth( folderToScan )+2 > spriteWidth  ) {
     String bname = gnu_basename( folderToScan );
     snprintf( lineText, 256, ">> %s", bname.c_str() );
   } else {
     snprintf( lineText, 256, "$> %s", folderToScan );
   }
-  tft.drawString( lineText, 2, ydirnamepos );
-
-  tft.setSwapBytes(false);
+  spritePaginate->drawString( lineText, 2, 0 );
 
   for(size_t i=pageStart,j=0; i<pageEnd; i++,j++ ) {
-    yitempos = ydislistpos + j*lineHeight;
+    uint16_t yitempos = ydislistpos + j*lineHeight;
     switch( myVirtualFolder->get(i%itemsPerPage).type )
     {
       case F_PLAYLIST:
         sprintf( lineText, "%s", "Play all"/*myVirtualFolder->get(i).name.c_str()*/ );
-        tft.drawJpg( iconlist_jpg, iconlist_jpg_len, 2, yitempos );
+        spritePaginate->drawJpg( iconlist_jpg, iconlist_jpg_len, 2, yitempos );
         break;
       case F_SUBFOLDER:
         sprintf( lineText, "%s", myVirtualFolder->get(i%itemsPerPage).name.c_str() );
-        tft.drawJpg( iconfolder2_jpg, iconfolder2_jpg_len, 2, yitempos );
+        spritePaginate->drawJpg( iconfolder2_jpg, iconfolder2_jpg_len, 2, yitempos );
         break;
       case F_SUBFOLDER_NOCACHE:
         sprintf( lineText, "%s", myVirtualFolder->get(i%itemsPerPage).name.c_str() );
-        tft.drawJpg( iconfolder1_jpg, iconfolder1_jpg_len, 2, yitempos );
+        spritePaginate->drawJpg( iconfolder1_jpg, iconfolder1_jpg_len, 2, yitempos );
         break;
       case F_PARENT_FOLDER:
         sprintf( lineText, "%s", myVirtualFolder->get(i%itemsPerPage).name.c_str() );
-        tft.drawJpg( iconup_jpg, iconup_jpg_len, 2, yitempos );
+        spritePaginate->drawJpg( iconup_jpg, iconup_jpg_len, 2, yitempos );
         break;
       case F_TOOL_CB:
         sprintf( lineText, "%s", myVirtualFolder->get(i%itemsPerPage).name.c_str() );
-        tft.drawJpg( icontool_jpg, icontool_jpg_len, 2, yitempos );
+        spritePaginate->drawJpg( icontool_jpg, icontool_jpg_len, 2, yitempos );
         break;
       case F_SID_FILE:
         String basename = gnu_basename( myVirtualFolder->get(i%itemsPerPage).path.c_str() );
         sprintf( lineText, "%s", basename.c_str() );
-        tft.drawJpg( iconsidfile_jpg, iconsidfile_jpg_len, 2, yitempos );
+        spritePaginate->drawJpg( iconsidfile_jpg, iconsidfile_jpg_len, 2, yitempos );
         break;
     }
     if( i==itemCursor ) {
       // highlight
-      tft.setTextColor( C64_DARKBLUE, C64_LIGHTBLUE );
+      spritePaginate->setTextColor( C64_DARKBLUE, C64_LIGHTBLUE );
       // also animate folder name
       if( strcmp( lineText, ".." ) == 0 ) {
-          if( tft.textWidth( folderToScan ) > minScrollableWidth-10 ) {
-            scrollableText->setup( folderToScan, 24, ydirnamepos, minScrollableWidth-10, lineHeight, 300, false );
+          if( spritePaginate->textWidth( folderToScan ) > minScrollableWidth-10 ) {
+            scrollableText->setup( folderToScan, 24, spriteYpos, minScrollableWidth-10, lineHeight, 30, false );
           } else {
             scrollableText->scroll = false;
           }
-      } else if( tft.textWidth( lineText ) > minScrollableWidth ) {
-        scrollableText->setup( lineText, 14, yitempos, minScrollableWidth, lineHeight );
+      } else if( spritePaginate->textWidth( lineText ) > minScrollableWidth ) {
+        scrollableText->setup( lineText, 14, yitempos+spriteYpos, minScrollableWidth, lineHeight, 30 );
       } else {
         scrollableText->scroll = false;
       }
     } else {
-      tft.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+      spritePaginate->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
     }
-    tft.drawString( lineText, 14, yitempos );
+    spritePaginate->drawString( lineText, 14, yitempos );
   }
 
-  tft.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+  spritePaginate->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
   sprintf(lineText, "%d/%d", pageNum+1, pageTotal );
-  tft.setTextDatum( TL_DATUM );
-  tft.drawString( lineText, 16, spriteHeight-lineHeight );
-  tft.drawJpg( iconinfo_jpg, iconinfo_jpg_len, 2, spriteHeight-lineHeight ); // clear disk icon
+  spritePaginate->setTextDatum( TL_DATUM );
+  spritePaginate->drawString( lineText, 16, spriteHeight-lineHeight );
+  spritePaginate->drawJpg( iconinfo_jpg, iconinfo_jpg_len, 2, spriteHeight-lineHeight ); // clear disk icon
   sprintf(lineText, "#%d", myVirtualFolder->size() );
-  tft.setTextDatum( TR_DATUM );
-  tft.drawString( lineText, spriteWidth -2, spriteHeight-lineHeight );
+  spritePaginate->setTextDatum( TR_DATUM );
+  spritePaginate->drawString( lineText, spriteWidth -2, spriteHeight-lineHeight );
 
   if( firstRender ) {
     firstRender = false;
-    /*for( int i=spriteHeight; i>=0; i-- ) {
-      tft.pushSprite( 0, i );
-    }*/
+    for( int i=spriteHeight; i>=spriteYpos; i-- ) {
+      spritePaginate->pushSprite( 0, i );
+    }
+    drawHeader();
     soundIntro( &sidPlayer->sid );
   } else {
-    //tft.pushSprite( 0, 0 );
+    drawHeader();
+    spritePaginate->pushSprite( 0, spriteYpos );
   }
 
-  //sprite->deleteSprite();
-  tft.endWrite();
+
+  spritePaginate->deleteSprite();
+
 }
 
 
@@ -549,12 +579,7 @@ bool SIDExplorer::getPaginatedFolder( const char* folderName, size_t offset, siz
       myVirtualFolder->clear();
       log_e("Could not build a list of songs");
       return false;
-    }/* else {
-      if( ! SongCache->scanPaginatedFolderCache( folderName, offset, itemsPerPage, &addFolderElement, &diskTicker ) ) {
-        log_e("Could paginate cached folder");
-        return false;
-      }
-    }*/
+    }
   } else {
     infoWindow( " READING $ " );
     if( !SongCache->scanPaginatedFolder( folderName, &addFolderElement, &diskTicker, offset, itemsPerPage ) ) {
@@ -564,24 +589,19 @@ bool SIDExplorer::getPaginatedFolder( const char* folderName, size_t offset, siz
     }
   }
 
-  size_t oldsize = 0;
-  oldsize = myVirtualFolder->_size;
+  size_t newsize = 0;
+
   if( String( folderName ) != "/"  ) { // no parent link for root folder
-    myVirtualFolder->_size = SongCache->getDirCacheSize( folderName ) + (offset == 0 ? 1 : 0 );
+    newsize = SongCache->getDirCacheSize( folderName ) + (offset == 0 ? 1 : 0 );
   } else {
-    myVirtualFolder->_size = SongCache->getDirCacheSize( folderName );
+     newsize = SongCache->getDirCacheSize( folderName );
   }
-  log_d("Adjusted folder size from %d to %d (offset=%d, maxitems=%d)", oldsize, myVirtualFolder->_size, offset, maxitems );
+  log_d("Adjusted folder size from %d to %d (offset=%d, maxitems=%d)", myVirtualFolder->_size, newsize, offset, maxitems );
+  myVirtualFolder->_size = newsize;
 
   return true;
 }
 
-
-bool SIDExplorer::getSortedFolder( const char* folderName, size_t maxitems, bool force_regen )
-{
-  bool ret = getPaginatedFolder( folderName, 0, maxitems, force_regen );
-  return ret;
-}
 
 
 void SIDExplorer::drawToolPage( const char* title )
@@ -637,14 +657,16 @@ void SIDExplorer::checkArchive( bool force_check )
 {
 
   mkdirp( fs, cfg->md5filepath ); // from ESP32-Targz: create traversing directories if none exist
-  bool folderSorted = getSortedFolder( folderToScan, maxitems );
+  bool folderSorted = getPaginatedFolder( folderToScan, 0, maxitems );
 
   if( force_check || !folderSorted || !fs->exists( cfg->md5filepath ) ) {
     // first run ?
     //TODO: confirmation dialog
-    drawToolPage( "Download Archive?");
-    while( readHID()==0 ) {
+    drawToolPage( "Start WiFi?");
+    uint8_t hidread = 0;
+    while( hidread==0 ) {
       delay(100);
+      hidread = readHID();
     }
 
     if( cfg->archive != nullptr ) {
@@ -672,10 +694,13 @@ void SIDExplorer::initSprites()
 {
   spriteText->setPsram(false);
   spriteText->setColorDepth(lgfx::palette_1bit);
-  spriteText->createSprite( tft.width(), 8 );
-  spriteText->setPaletteColor(0, C64_DARKBLUE );
-  spriteText->setPaletteColor(1, C64_LIGHTBLUE );
-
+  sptr = (uint16_t*)spriteText->createSprite( tft.width(), 8 );
+  if( !sptr ) {
+    log_e("Unable to create spriteText");
+  } else {
+    spriteText->setPaletteColor(0, C64_DARKBLUE );
+    spriteText->setPaletteColor(1, C64_LIGHTBLUE );
+  }
   for( int i=0;i<3;i++ ) {
     oscViews[i]->init( &sidPlayer->sid );
   }
@@ -695,12 +720,6 @@ void SIDExplorer::infoWindow( const char* text )
 {
   int cx = tft.width()/2, cy = cx;
   log_d( "%s", text );
-  /*
-  for( int i=2;i<48;i+=2 ) {
-    int i2 = i+1;
-    tft.drawRect( cx-i2, cy-i2/2, i2*2, i2, C64_LIGHTBLUE );
-    tft.drawRect( cx-i,  cy-i/2,  i*2,  i,  C64_DARKBLUE );
-  }*/
 
   tft.fillRect( cx-64, cy-36, 128, 82, C64_DARKBLUE );
   tft.drawRect( cx-50, cy-28, 100, 56, C64_LIGHTBLUE );
@@ -760,7 +779,7 @@ void SIDExplorer::animateView()
     delay(10);
     renderVoicesTaskHandle = NULL;
   } else {
-    if( sidPlayer->isRunning() ) {
+    if( sidPlayer->isPlaying() ) {
       if( renderVoicesTaskHandle == NULL  && ! adsrenabled ) {
         // ADSR not running, draw UI and run task
         log_d("[%d] launching renverVoices task", ESP.getFreeHeap() );
@@ -783,13 +802,19 @@ void SIDExplorer::animateView()
 
 void SIDExplorer::drawHeader()
 {
-  //tft.fillRect( 0, 0, tft.width(), 16, C64_DARKBLUE ); // Commodore64 blueish
-  tft.drawFastHLine( 0, 0, tft.width(), C64_MAROON_DARKER );
-  tft.drawFastHLine( 0, 1, tft.width(), C64_MAROON_DARK );
-  tft.fillRect( 0, 2, tft.width(), 12, C64_MAROON );
-  tft.drawJpg( header48x12_jpg, header48x12_jpg_len, 41, 2 );
-  tft.drawFastHLine( 0, 14, tft.width(), C64_MAROON_DARK );
-  tft.drawFastHLine( 0, 15, tft.width(), C64_MAROON_DARKER );
+  sptr = (uint16_t*)spriteHeader->createSprite( tft.width(), 16 );
+  if( !sptr) {
+    log_e("Unable to draw header");
+    return;
+  }
+  spriteHeader->drawFastHLine( 0, 0, tft.width(), C64_MAROON_DARKER );
+  spriteHeader->drawFastHLine( 0, 1, tft.width(), C64_MAROON_DARK );
+  spriteHeader->fillRect( 0, 2, tft.width(), 12, C64_MAROON );
+  spriteHeader->drawJpg( header48x12_jpg, header48x12_jpg_len, 41, 2 );
+  spriteHeader->drawFastHLine( 0, 14, tft.width(), C64_MAROON_DARK );
+  spriteHeader->drawFastHLine( 0, 15, tft.width(), C64_MAROON_DARKER );
+  spriteHeader->pushSprite(0, 0);
+  spriteHeader->deleteSprite();
 }
 
 
