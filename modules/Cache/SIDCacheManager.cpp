@@ -123,7 +123,7 @@ void SongCacheManager::setCleanFileName( char* dest, size_t len, const char* for
     clean = clean.substring( 0, slen-4 ) + end;
   }
   snprintf( dest, len, format, clean.c_str() );
-  log_d("Cleaned up %s => %s ", src, dest );
+  log_v("Cleaned up %s => %s ", src, dest );
 }
 
 
@@ -162,7 +162,7 @@ const String SongCacheManager::makeCachePath( const char* path, const char* cach
   } else {
     cleanPath = String(path) + "/" + String(cachename);
   }
-  log_d("Generated path %s from %s and %s", cleanPath.c_str(), path, cachename );
+  log_v("Generated path %s from %s and %s", cleanPath.c_str(), path, cachename );
   return cleanPath;
 }
 
@@ -224,15 +224,19 @@ bool SongCacheManager::purge( const char * path )
 
 
 
-bool SongCacheManager::add( const char * path, SID_Meta_t *song )
+bool SongCacheManager::add( const char * path, SID_Meta_t *song, bool checkdupes )
 {
   init( path );
+  if( songCacheFile && !checkdupes ) {
+    log_d("[Cache Blind Insertion] : %s", song->name );
+    return insert( song, true );
+  }
+
   if( fs->exists( cachepath ) ) { // cache file exists !!
     if( !exists( song ) ) { // song is not in cache file
       log_d("[Cache Insertion]");
       return insert( song, true );
     }
-    log_d("[Cache Hit]");
     return true; // song is already in the cache file
   } else { // cache file does not exist
     log_d("[Cache Creation+Insertion]");
@@ -242,7 +246,7 @@ bool SongCacheManager::add( const char * path, SID_Meta_t *song )
 
 
 
-int SongCacheManager::addSong( const char * path )
+int SongCacheManager::addSong( const char * path, bool checkdupes )
 {
   SID_Meta_t *song = (SID_Meta_t*)sid_calloc(1, sizeof(SID_Meta_t) );
   song->durations = nullptr;
@@ -252,7 +256,7 @@ int SongCacheManager::addSong( const char * path )
   int ret = -1;
 
   if( sidPlayer->getInfoFromSIDFile( path, song ) ) {
-    if( add( path, song ) ) {
+    if( add( path, song, checkdupes ) ) {
       log_d("[%d] Cached %s", ESP.getFreeHeap(), path);
       ret = 1;
     } else {
@@ -288,9 +292,9 @@ bool SongCacheManager::update( const char* path, SID_Meta_t *song )
     if( strcmp( (const char*)tmpsong->name, (const char*)song->name ) == 0
     && strcmp( (const char*)tmpsong->author, (const char*)song->author ) == 0 ) {
       cacheFile.seek( entry_index*bufsize );
-      size_t objsize = bufsize + song->subsongs*sizeof(uint32_t);
+      size_t objsize = bufsize;// + song->subsongs*sizeof(uint32_t);
       size_t bytes_written = cacheFile.write( (uint8_t*)song, objsize );
-      ret= bytes_written == objsize;
+      ret = (bytes_written == objsize);
       break;
     }
     entry_index++;
@@ -405,7 +409,7 @@ bool SongCacheManager::dirCacheUpdate( fs::File *dirCache, const char*_itemName,
     return false;
   }
 
-  getDirCacheSize( dirCache ); // skip folder size line
+  if( getDirCacheSize( dirCache ) == 0 ) return false; // skip folder size line
 
   log_d("[%d] Will update item %s in cache %s", ESP.getFreeHeap(), dirCache->name(), _itemName );
   while( dirCache->available() ) {
@@ -484,7 +488,7 @@ bool SongCacheManager::dirCacheAdd( fs::File *dirCache, const char*itemName, fol
 
 
 
-void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, folderElementPrintCb printCb, activityTicker tickerCb )
+void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, activityTicker tickerCb )
 {
   size_t dirCacheFileSize = dirCacheFile->size();
   int avail_ram = ESP.getFreeHeap() - 100000; // don't go under 100k heap
@@ -500,6 +504,7 @@ void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, fol
     while( dirCacheFile->available() ) {
       String blah = dirCacheFile->readStringUntil( '\n' );
       log_d("Feeding folder #%d with '%s'", thisFolder.size(), blah.c_str() );
+      tickerCb( "Feed", thisFolder.size() );
       thisFolder.push_back( blah );
     }
 
@@ -507,11 +512,10 @@ void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, fol
 
     getDirCacheSize( dirCacheFile ); // skip folder size line
 
+    tickerCb( "Sort", thisFolder.size() );
     std::sort( thisFolder.begin(), thisFolder.end() );
 
     log_d("std::sorted %d entries in file %s (at offset %d)", thisFolder.size(), dirCacheFile->name(), dirCacheFile->position() );
-
-    //dirCacheFile->seek(5);
 
     for( int i=0;i<thisFolder.size();i++ ) {
       size_t startpos = dirCacheFile->position();
@@ -522,14 +526,8 @@ void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, fol
       dirCacheFile->write( '\n' );
       log_d("Written sorted dircache entry '%s' (%d bytes) at offsets [%d-%d]", folderData, folderSize, startpos, dirCacheFile->position() );
 
-      if( maxitems == 0 || entries < maxitems ) {
-        printCb( thisFolder[i].c_str()+2, (folderItemType_t)thisFolder[i].c_str()[0] );
-      }
-      /*
-      if( !tickerCb( "Sort", entries ) ) {
-        break;
-      }
-      */
+      tickerCb( "Save", entries );
+
       entries++;
     }
 
@@ -559,6 +557,7 @@ size_t SongCacheManager::getDirCacheSize( const char*pathname )
 {
   String dircachepath = dirCachePath( pathname );
   File cacheFile = fs->open( dircachepath );
+  if( !cacheFile ) return 0;
   size_t cachesize = getDirCacheSize( &cacheFile );
   cacheFile.close();
   return cachesize;
@@ -576,6 +575,8 @@ size_t SongCacheManager::getDirCacheSize( fs::File *cacheFile )
   // skip separator
   if( cacheFile->read() != '\n' ) {
     log_e("[%s] Unexpected byte while thawing %d as %d bytes: %02x %02x %02x %02x (%s)", cacheFile->name(), cachesize, sizeof(size_t), sizeToByte[0], sizeToByte[1], sizeToByte[2], sizeToByte[3], (const char*)sizeToByte );
+    delete sizeToByte;
+    return 0;
   } else {
     log_d("Cache file %s claims %d elements", cacheFile->name(), cachesize );
   }
@@ -648,7 +649,7 @@ bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb pr
   bool folder_has_cache    = folderHasCache( pathname );
 
   bool build_cache = false;
-  bool cache_built = false;
+  //bool cache_built = false;
 
   if( force_regen ) {
     purge( pathname );
@@ -701,12 +702,14 @@ bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb pr
         //printCb( file.name(), F_SID_FILE );
         dirCacheAdd( &DirCache, cleanfilename, F_SID_FILE );
 
+        /*
         if( build_cache ) {
           // eligibility for .sidcache ?
           if( addSong( cleanfilename ) > 0 ) {
             cache_built = true;
           }
         }
+        */
         totalitems++;
 
       } else {
@@ -724,14 +727,6 @@ bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb pr
     }
   }
 
-  if( build_cache && cache_built && !folder_has_playlist ) {
-    dirCacheAdd( &DirCache, pathname, F_PLAYLIST );
-    printCb( pathname, F_PLAYLIST );
-    if( songCacheFile )
-      songCacheFile.close();
-    maxitems--;
-  }
-
   DirCache.close();
 
   // reopen as r+ mode to update cache size
@@ -741,12 +736,71 @@ bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb pr
 
   // reopen as r+ mode to sort cache content
   DirCache = fs->open( dirCachePath( pathname ), "r+" );
-  dirCacheSort( &DirCache, maxitems, printCb, tickerCb );
-  DirCache.close();
+  dirCacheSort( &DirCache, maxitems, tickerCb );
+  // create SID Cache from sorted content
+  if( build_cache && buildSidCacheFromDirCache( &DirCache, tickerCb ) ) {
+    if( songCacheFile )
+      songCacheFile.close();
+    //if( folderHasPlaylist( pathname ) ) {
+      dirCacheAdd( &DirCache, pathname, F_PLAYLIST );
+    //}
+  }
 
+  DirCache.close();
   root.close();
 
-  return true;
+  return scanPaginatedFolder( pathname, printCb, tickerCb, 0, maxitems );
+}
+
+
+
+bool SongCacheManager::buildSidCacheFromDirCache( fs::File *sortedDirCache, activityTicker tickerCb )
+{
+  sortedDirCache->seek(0);
+
+  if( getDirCacheSize( sortedDirCache ) == 0 ) return false; // skip folder size line
+  bool cache_built = false;
+
+  //size_t currentoffset = 0;
+  size_t saved = 0;
+
+  while( sortedDirCache->available() ) {
+    uint8_t typeint = sortedDirCache->read();
+    switch( typeint )
+    {
+      case F_PLAYLIST:          // SID file list for current folder
+      case F_SUBFOLDER:         // subfolder with SID file list
+      case F_SUBFOLDER_NOCACHE: // subfolder with no SID file list
+      case F_PARENT_FOLDER:     // parent folder
+      case F_SID_FILE:          // single SID file
+      case F_TOOL_CB:           // not a real file
+      break;
+      default: // EOF or bad data ?
+        goto _end;
+    }
+    folderItemType_t type = (folderItemType_t) typeint;
+    if( sortedDirCache->read() != ':' ) {
+      // EOF!
+      goto _end;
+    }
+    String itemName = sortedDirCache->readStringUntil('\n');
+    if( itemName == "" ) {
+      // bad dircache file
+      goto _end;
+    }
+    if( type == F_SID_FILE || type == F_PLAYLIST ) {
+      if( addSong( itemName.c_str(), saved==0 ) > 0 ) {
+        cache_built = true;
+        saved++;
+      }
+      tickerCb("Cache", saved );
+    }
+  }
+
+  _end:
+
+  return cache_built;
+
 }
 
 
@@ -832,7 +886,11 @@ bool SongCacheManager::getInfoFromCacheItem( const char* _cachepath, size_t item
 bool SongCacheManager::getInfoFromCacheItem( size_t itemNum )
 {
 
-  sidPlayer->stop(); // prevent concurrent SPI access
+  if( sidPlayer->isPlaying() ) {
+    sidPlayer->stop(); // prevent concurrent SPI access
+  }
+
+  delay(200);
 
   if(! fs->exists( cachepath ) ) {
     log_e("Error! Cache file %s does not exist", cachepath );
@@ -854,6 +912,10 @@ bool SongCacheManager::getInfoFromCacheItem( size_t itemNum )
   char *SID_Meta_buf =  new char[bufsize+1];
   size_t itemCount = 0;
   bool ret = false;
+
+  if( itemNum > 0 ) {
+    cacheFile.seek( itemNum*bufsize );
+  }
 
   while( cacheFile.available() ) {
     cacheFile.readBytes( SID_Meta_buf, bufsize );// == bufsize
@@ -887,10 +949,11 @@ bool SongCacheManager::getInfoFromCacheItem( size_t itemNum )
       //songdebug( sidPlayer->currenttrack );
       ret = true;
     }
+    if( itemNum > 0 ) break;
   }
   delete SID_Meta_buf;
   cacheFile.close();
-  CacheItemSize = itemCount;
+  if( itemNum == 0 ) CacheItemSize = itemCount;
   CacheItemNum  = itemNum;
   log_d("Loaded %d songs into player (cache size: %d)", sidPlayer->currenttrack->subsongs, CacheItemSize );
   //sidPlayer->setSongstructCachePath( SID_FS, cachepath );

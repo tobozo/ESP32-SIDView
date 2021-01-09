@@ -41,10 +41,10 @@
 // item types for the SID Player
 typedef enum
 {
+  F_PARENT_FOLDER,     // parent folder
   F_PLAYLIST,          // SID file list for current folder
   F_SUBFOLDER,         // subfolder with SID file list
   F_SUBFOLDER_NOCACHE, // subfolder with no SID file list
-  F_PARENT_FOLDER,     // parent folder
   F_SID_FILE,          // single SID file
   F_TOOL_CB            // virtual file representing a program/callback
 } folderItemType_t;
@@ -116,7 +116,6 @@ class SongCacheManager
 
     fs::FS         *fs;
     fs::File       songCacheFile;
-    //size_t         dircachesize;
 
     SIDTunesPlayer *sidPlayer;
 
@@ -137,18 +136,18 @@ class SongCacheManager
 
     bool   dirCacheUpdate( fs::File *dirCache, const char*_itemName, folderItemType_t type );
     bool   dirCacheAdd( fs::File *dirCache, const char*itemName, folderItemType_t type );
-    void   dirCacheSort(fs::File *cacheFile, size_t maxitems, folderElementPrintCb printCb = &debugFolderElement, activityTicker tickerCb = &debugFolderTicker );
+    void   dirCacheSort(fs::File *cacheFile, size_t maxitems, activityTicker tickerCb = &debugFolderTicker );
     void   setDirCacheSize( fs::File *dirCacheFile, size_t totalitems = 0);
     size_t getDirCacheSize( fs::File *cacheFile );
 
     void setCleanFileName( char* dest, size_t len, const char* format, const char* src );
 
-
-    int  addSong( const char * path );
+    int  addSong( const char * path, bool checkdupes = true );
     bool purge( const char * path );
-    bool add( const char * path, SID_Meta_t *song );
+    bool add( const char * path, SID_Meta_t *song, bool checkdupes = true );
     bool update( const char* path, SID_Meta_t *song );
     bool get( const char* md5path, SID_Meta_t *song );
+    bool buildSidCacheFromDirCache( fs::File *sortedDirCache, activityTicker tickerCb = &debugFolderTicker );
 
     bool getInfoFromSIDFile( const char * path, SID_Meta_t *songinfo );
 
