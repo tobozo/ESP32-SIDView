@@ -51,7 +51,7 @@ void OscilloView::init( SID6581 *_sid, uint32_t freqHz, uint8_t oscType, std::ui
   env->reset();
   oscSprite->setPsram(false);
   oscSprite->setColorDepth(lgfx::palette_1bit);
-  oscSprite->createSprite( graphWidth, spriteHeight );
+  //oscSprite->createSprite( graphWidth, spriteHeight );
   oscSprite->setPaletteColor( 0, bgcol );
   oscSprite->setPaletteColor( 1, fgcol );
   timeFrameRatio = float(timeFrameWidth_us) / float(graphWidth); // how many micros per pixel
@@ -59,21 +59,23 @@ void OscilloView::init( SID6581 *_sid, uint32_t freqHz, uint8_t oscType, std::ui
   fgcolor = fgcol;
   pan = osc->period*2;
   ticks = pan/graphWidth;
-  if( valuesCache == nullptr ) {
-    valuesCache = (int32_t*)sid_calloc( graphWidth+1, sizeof( int32_t ) );
-  }
-  memset( valuesCache, 0, graphWidth+1*sizeof( int32_t ) );
+  //if( valuesCache == nullptr ) {
+  //  valuesCache = (int32_t*)sid_calloc( graphWidth+1, sizeof( int32_t ) );
+  //}
+  //memset( valuesCache, 0, graphWidth+1*sizeof( int32_t ) );
   log_d("[%d] OscView init [%dx%d]", ESP.getFreeHeap(), graphWidth, graphHeight );
 }
 
 
 void OscilloView::deinit()
 {
-  oscSprite->deleteSprite();
+  //oscSprite->deleteSprite();
+  /*
   if( valuesCache != nullptr ) {
     free( valuesCache );
     valuesCache = nullptr;
   }
+  */
 }
 
 
@@ -153,7 +155,19 @@ void OscilloView::gate( uint8_t val )
 
 void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
 {
-  oscSprite->fillSprite( bgcolor );
+  const char* sptr = (const char*)oscSprite->createSprite( graphWidth, spriteHeight );
+  if( !sptr ) {
+    log_d("Not enough ram to create enveloppe sprite");
+    return;
+  }
+  valuesCache = (int32_t*)sid_calloc( graphWidth+1, sizeof( int32_t ) );
+  if( valuesCache == NULL ) {
+    log_d("Not enough ram to store enveloppe data");
+    return;
+  }
+  oscSprite->setPaletteColor( 0, bgcolor );
+  oscSprite->setPaletteColor( 1, fgcolor );
+  //oscSprite->fillSprite( bgcolor );
 
   float    pulsewidth = sid->getPulse(voice);
   uint8_t  waveform   = sid->getWaveForm(voice);
@@ -204,33 +218,36 @@ void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
     oscSprite->drawLine( i-1, valuesCache[i-1], i, valuesCache[i], fgcolor );
   }
   oscSprite->pushSprite( x, y );
+  oscSprite->deleteSprite();
+  free( valuesCache );
+
 }
 
 
 int OscilloView::getEnveloppeRateMs( rateType_t type, uint8_t rate )
 {
-  /*-----------ENVELOPE RATES-----------------\
-  |   VALUE   | ATTACK RATE  | DECAY/RELEASE  |
+  /*------------ENVELOPE RATES---------------*\
+  |   VALUE   | ATTACK RATE   | DECAY/RELEASE |
   |-------------------------------------------|
-  | DEC (HEX) | (Time/Cycle) |   (Time/Cycle) |
+  | DEC (HEX) | (Time/Cycle)  | (Time/Cycle)  |
   |-------------------------------------------|
-  | 0  | 0x0  |      2 mS    |       6 mS     |
-  | 1  | 0x1  |      8 mS    |      24 mS     |
-  | 2  | 0x2  |     16 mS    |      48 mS     |
-  | 3  | 0x3  |     24 mS    |      72 mS     |
-  | 4  | 0x4  |     38 mS    |     114 mS     |
-  | 5  | 0x5  |     56 mS    |     168 mS     |
-  | 6  | 0x6  |     68 mS    |     204 mS     |
-  | 7  | 0x7  |     80 mS    |     240 mS     |
-  | 8  | 0x8  |    100 mS    |     300 mS     |
-  | 9  | 0x9  |    250 mS    |     750 mS     |
-  | 10 | 0xa  |    500 mS    |     1.5 S      |
-  | 11 | 0xb  |    800 mS    |     2.4 S      |
-  | 12 | 0xc  |      1 S     |       3 S      |
-  | 13 | 0xd  |      3 S     |       9 S      |
-  | 14 | 0xe  |      5 S     |      15 S      |
-  | 15 | 0xf  |      8 S     |      24 S      |
-  \__________________________________________*/
+  | 0  | 0x0  |      2 mS     |      6 mS     |
+  | 1  | 0x1  |      8 mS     |     24 mS     |
+  | 2  | 0x2  |     16 mS     |     48 mS     |
+  | 3  | 0x3  |     24 mS     |     72 mS     |
+  | 4  | 0x4  |     38 mS     |    114 mS     |
+  | 5  | 0x5  |     56 mS     |    168 mS     |
+  | 6  | 0x6  |     68 mS     |    204 mS     |
+  | 7  | 0x7  |     80 mS     |    240 mS     |
+  | 8  | 0x8  |    100 mS     |    300 mS     |
+  | 9  | 0x9  |    250 mS     |    750 mS     |
+  | 10 | 0xa  |    500 mS     |    1.5 S      |
+  | 11 | 0xb  |    800 mS     |    2.4 S      |
+  | 12 | 0xc  |      1 S      |      3 S      |
+  | 13 | 0xd  |      3 S      |      9 S      |
+  | 14 | 0xe  |      5 S      |     15 S      |
+  | 15 | 0xf  |      8 S      |     24 S      |
+  \*_________________________________________*/
   switch( type ) {
     case RATE_ATTACK:
       switch( rate ) {

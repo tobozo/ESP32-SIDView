@@ -41,7 +41,6 @@ typedef enum
   RATE_RELEASE
 } rateType_t;
 
-//extern TFT_eSPI *sidLcd;
 
 
 class OscilloView
