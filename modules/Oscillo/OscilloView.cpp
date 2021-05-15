@@ -181,6 +181,24 @@ void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
   int  ringmode       = sid->getRingMode( voice );
   __attribute__((unused))
   int      sync       = sid->getSync( voice );
+
+  oscSprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+  oscSprite->setTextDatum( TL_DATUM );
+  char text[24] = {0};
+
+  /*
+  int Resonance = sid->getResonance(0);
+  int LowHiFilterFreq = sid->getFilterFrequency(0); // The approximate Cutoff Frequency ranges between 30Hz and 10KHz
+  int FilterEx = sid->getFilterEX(0);
+
+  snprintf( text, 24, "F: %02x - H/L: %04x", filtervalue, LowHiFilterFreq );
+  oscSprite->drawString( text, 0,0 );
+
+  snprintf( text, 24, "R: %02x - X: %02x", Resonance, FilterEx );
+  oscSprite->drawString( text, 0,8 );
+  */
+
+
   float sampleRate = timeFrameWidth_ms; // float( fps );
 
   attack  = getEnveloppeRateMs( RATE_ATTACK, attack );// / 1000.0;
@@ -214,9 +232,42 @@ void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
     // TODO: add filter
   }
 
+
+
+  int filtervalue = 0;
+  switch( voice ) {
+    case 0: filtervalue = sid->getFilter1(0); break;
+    case 1: filtervalue = sid->getFilter2(0); break;
+    case 2: filtervalue = sid->getFilter3(0); break;
+    default: filtervalue = 0;
+  }
+
+  if( filtervalue == 1 ) {
+    int HP = sid->getHP(0); // high pass
+    int BP = sid->getBP(0); // band pass
+    int LP = sid->getLP(0); // low pass
+
+
+    if( LP == 1 ) {
+
+      //snprintf( text, 24, "H:%02x B:%02x L:%02x", HP, BP, LP );
+      //oscSprite->drawString( text, 0,16 );
+      lowPassFilter->SetParameters( 0.75, 0.02 );
+      for( int i=0; i<graphWidth; i++ ) {
+        valuesCache[i] = lowPassFilter->Process( valuesCache[i] );
+      }
+    }
+
+  }
+
+
+  if( showFPS )
+    renderFPS();
+
   for( int i=1; i<graphWidth; i++ ) {
     oscSprite->drawLine( i-1, valuesCache[i-1], i, valuesCache[i], fgcolor );
   }
+
   oscSprite->pushSprite( x, y );
   oscSprite->deleteSprite();
   free( valuesCache );
@@ -224,8 +275,32 @@ void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
 }
 
 
+void OscilloView::renderFPS() {
+  unsigned long nowMillis = millis();
+  if(nowMillis - fstart >= fpsInterval) {
+    fpi = float(framesCount * fpsInterval) / float(nowMillis - fstart);
+    fps = int(fpi*fpsscale);
+    fstart = nowMillis;
+    framesCount = 0;
+  } else {
+    framesCount++;
+  }
+  if( fps != lastfps ) {
+    lastfps = fps;
+  }
+  oscSprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+  oscSprite->setTextDatum( TL_DATUM );
+  char text[12] = {0};
+  snprintf( text, 12, "fps: %3d", fps );
+  oscSprite->drawString( text, 0,0 );
+
+}
+
+
 int OscilloView::getEnveloppeRateMs( rateType_t type, uint8_t rate )
 {
+
+
   /*------------ENVELOPE RATES---------------*\
   |   VALUE   | ATTACK RATE   | DECAY/RELEASE |
   |-------------------------------------------|
@@ -248,6 +323,9 @@ int OscilloView::getEnveloppeRateMs( rateType_t type, uint8_t rate )
   | 14 | 0xe  |      5 S      |     15 S      |
   | 15 | 0xf  |      8 S      |     24 S      |
   \*_________________________________________*/
+
+
+
   switch( type ) {
     case RATE_ATTACK:
       switch( rate ) {

@@ -322,32 +322,5 @@ void drawBezierCurve( TFT_eSprite &scrollSprite, int x1, int y1, int x2, int y2,
 }*/
 
 
-// fps counter
-unsigned long framesCount = 0;
-uint32_t fstart = millis();
-int fpsInterval = 100;
-float fpsscale = 1000.0/fpsInterval; // fpi to fps
-int fps = 0;   // frames per second
-int lastfps = 0;
-float fpi = 0; // frames per interval
-bool showFPS = false;
-
-void renderFPS() {
-  unsigned long nowMillis = millis();
-  if(nowMillis - fstart >= fpsInterval) {
-    fpi = float(framesCount * fpsInterval) / float(nowMillis - fstart);
-    fps = int(fpi*fpsscale);
-    fstart = nowMillis;
-    framesCount = 0;
-  } else {
-    framesCount++;
-  }
-  if( fps != lastfps ) {
-    tft.setCursor( 0, 0 );
-    tft.setTextColor( C64_DARKBLUE, C64_LIGHTBLUE );
-    tft.setTextDatum( TL_DATUM );
-    tft.printf( "fps: %3d  ", fps );
-  }
-}
 
 #endif

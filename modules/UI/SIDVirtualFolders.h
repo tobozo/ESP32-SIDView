@@ -56,17 +56,18 @@ struct VirtualFolder
 };
 
 
-struct VirtualFolderPsRam : public VirtualFolder
+struct VirtualFolderNoRam : public VirtualFolder
 {
 
   const char* folderName;
   SongCacheManager* songCache;
 
-  VirtualFolderPsRam( SongCacheManager* cache ) : songCache(cache) { }
+  VirtualFolderNoRam( SongCacheManager* cache ) : songCache(cache) { }
 
   void clear()
   {
-    std::vector<folderTypeItem_t>().swap(folder);
+    //std::vector<folderTypeItem_t>().swap(folder);
+    folder.clear();
     _size = 0;
   }
   folderTypeItem_t get( int index )
@@ -94,7 +95,7 @@ struct VirtualFolderPsRam : public VirtualFolder
 };
 
 
-VirtualFolderPsRam *myVirtualFolder = nullptr;//new VirtualFolderPsRam( nullptr );
+VirtualFolderNoRam *myVirtualFolder = nullptr;
 
 #if 0
 

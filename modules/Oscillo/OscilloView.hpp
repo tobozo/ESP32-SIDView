@@ -32,6 +32,7 @@
 #define _SID_OSCILLO_VIEW_H_
 
 #include "Oscillator.hpp"
+#include "../Filters/LowPass.h"
 
 
 typedef enum
@@ -64,11 +65,12 @@ class OscilloView
     int      getEnveloppeRateMs( rateType_t type, uint8_t rate );
 
   private:
-    SID6581     *sid        = nullptr;
-    Oscillator  *osc        = new Oscillator(1);
-    ADSR        *env        = new ADSR;
-    TFT_eSprite *oscSprite  = new TFT_eSprite( &tft );
-    int32_t* valuesCache    = nullptr;
+    SID6581     *sid           = nullptr;
+    Oscillator  *osc           = new Oscillator(1);
+    ADSR        *env           = new ADSR;
+    TFT_eSprite *oscSprite     = new TFT_eSprite( &tft );
+    LowPass     *lowPassFilter = new LowPass();
+    int32_t* valuesCache       = nullptr;
 
     int32_t  graphWidth;
     int32_t  spriteHeight;
@@ -85,6 +87,21 @@ class OscilloView
     float    ticks;
     float    pan;
     bool     gated;
+
+
+    // fps counter
+    unsigned long framesCount = 0;
+    uint32_t fstart = millis();
+    int fpsInterval = 100;
+    float fpsscale = 1000.0/fpsInterval; // fpi to fps
+    int fps = 0;   // frames per second
+    int lastfps = -1;
+    float fpi = 0; // frames per interval
+    bool showFPS = true;
+
+    void renderFPS();
+
+
 
 };
 

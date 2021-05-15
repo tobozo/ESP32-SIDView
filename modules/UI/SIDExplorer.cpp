@@ -73,7 +73,7 @@ SIDExplorer::SIDExplorer( MD5FileConfig *_cfg ) : cfg(_cfg)
 
   sidPlayer       = new SIDTunesPlayer( cfg->fs );
   SongCache       = new SongCacheManager( sidPlayer );
-  myVirtualFolder = new VirtualFolderPsRam( SongCache );
+  myVirtualFolder = new VirtualFolderNoRam( SongCache );
 
   sidPlayer->setMD5Parser( cfg );
 
@@ -91,6 +91,9 @@ SIDExplorer::SIDExplorer( MD5FileConfig *_cfg ) : cfg(_cfg)
 
   lineHeight         = spriteText->fontHeight()+2;
   minScrollableWidth = spriteWidth - 14;
+
+  xTaskCreatePinnedToCore( SIDExplorer::mainTask, "sidExplorer", 8192, this, 0, NULL, SID_PLAYER_CORE/*SID_CPU_CORE*/ ); // will trigger SD reads and TFT writes
+
 }
 
 
@@ -208,7 +211,7 @@ int SIDExplorer::readHID()
 void SIDExplorer::processHID()
 {
   int resp = readHID();
-  if( resp!=0 && ( lastresp != resp || lastpush + debounce < millis() ) ) {
+  if( resp>0 && ( lastresp != resp || lastpush + debounce < millis() ) ) {
     log_d("HID Action = %d", resp );
 
     currentBrowsingType = myVirtualFolder->get(itemCursor%itemsPerPage).type;
@@ -281,7 +284,8 @@ void SIDExplorer::processHID()
             case F_SUBFOLDER_NOCACHE:
               snprintf(folderToScan, 256, "%s", currentPath );
               PlayerPrefs.setLastPath( folderToScan );
-              getPaginatedFolder( folderToScan, 0, maxitems );
+              //log_d("#### will getPaginatedFolder");
+              //getPaginatedFolder( folderToScan, 0, maxitems );
               if( itemCursor==0 && currentBrowsingType == F_PARENT_FOLDER ) {
                 // going up
                 if( folderDepth > 0 ) {
@@ -295,6 +299,9 @@ void SIDExplorer::processHID()
                 lastItemCursor[folderDepth] = itemCursor;
                 itemCursor = 0;
               }
+              getPaginatedFolder( folderToScan, 0, maxitems );
+              oldPageNum = 0;
+              //setupPagination();
               explorer_needs_redraw = true;
               inactive_delay = 5000;
             break;
@@ -335,6 +342,7 @@ void SIDExplorer::processHID()
             log_d("Refresh folder -> regenerate %s Dir List and Songs Cache", folderToScan );
             delete( sidPlayer->MD5Parser );
             sidPlayer->MD5Parser = NULL;
+            log_d("#### will getPaginatedFolder");
             getPaginatedFolder( folderToScan, 0, maxitems, true );
             sidPlayer->setMD5Parser( cfg );
             explorer_needs_redraw = true;
@@ -404,7 +412,7 @@ void SIDExplorer::setUIPlayerMode( loopmode mode )
 
 void SIDExplorer::setupPagination()
 {
-  uint16_t oldPageNum = pageNum;
+  oldPageNum = pageNum;
   pageNum     = itemCursor/itemsPerPage;
   if( myVirtualFolder->size() > 0 ) {
     pageTotal   = ceil( float(myVirtualFolder->size())/float(itemsPerPage) );
@@ -415,8 +423,9 @@ void SIDExplorer::setupPagination()
   pageEnd     = pageStart+itemsPerPage;
 
   if( pageNum != oldPageNum ) {
-    infoWindow( " READING $ " );
+    // infoWindow( " READING $ " );
     // page change, load paginated cache !
+    log_d("#### will getPaginatedFolder");
     getPaginatedFolder( folderToScan, pageStart, itemsPerPage  );
     // simulate a push-release to prevent multiple action detection
     lastpush = millis();
@@ -442,7 +451,12 @@ void SIDExplorer::drawPaginaged()
 
   sptr = (uint16_t*)spritePaginate->createSprite(tft.width(), tft.height()-HeaderHeight );
   if( !sptr ) {
-    log_e("Unable to create sprite for pagination");
+    log_e("Unable to create 16bits sprite for pagination, trying 8 bits");
+    spritePaginate->setColorDepth(8);
+    sptr = (uint16_t*)spritePaginate->createSprite(tft.width(), tft.height()-HeaderHeight );
+    if( !sptr ) {
+      log_e("Unable to create 8bits sprite for pagination, giving up");
+    }
   }
   spriteHeight = spritePaginate->height(); // for bottom-alignment
 
@@ -657,6 +671,7 @@ void SIDExplorer::checkArchive( bool force_check )
 {
 
   mkdirp( fs, cfg->md5filepath ); // from ESP32-Targz: create traversing directories if none exist
+  log_d("#### will getPaginatedFolder");
   bool folderSorted = getPaginatedFolder( folderToScan, 0, maxitems );
 
   if( force_check || !folderSorted || !fs->exists( cfg->md5filepath ) ) {
@@ -785,7 +800,7 @@ void SIDExplorer::animateView()
         log_d("[%d] launching renverVoices task", ESP.getFreeHeap() );
         drawHeader();
         positionInPlaylist = -1; // make sure the title is displayed
-        xTaskCreatePinnedToCore( drawVoices, "drawVoices", 2048, this, 0, &renderVoicesTaskHandle, /*SID_PLAYER_CORE/*/SID_CPU_CORE ); // will trigger TFT writes
+        xTaskCreatePinnedToCore( drawVoices, "drawVoices", 2048, this, 8, &renderVoicesTaskHandle, SID_PLAYER_CORE/*SID_CPU_CORE*/ ); // will trigger TFT writes
         adsrenabled = true;
       } else {
         // ADSR already running or stopping

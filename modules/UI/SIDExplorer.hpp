@@ -117,6 +117,15 @@ class SIDExplorer
 
     int32_t explore();
 
+    static void mainTask( void *param )
+    {
+       SIDExplorer *SidViewer = (SIDExplorer*) param;
+       SidViewer->explore();
+       vTaskDelete( NULL );
+    }
+
+
+
   private:
 
     MD5FileConfig    *cfg = nullptr;
@@ -143,6 +152,7 @@ class SIDExplorer
     int            positionInPlaylist = -1;
 
     uint16_t pageNum     = 0;
+    int32_t  oldPageNum  = -1;
     uint16_t pageTotal   = 0;
     uint16_t pageStart   = 0;
     uint16_t pageEnd     = 0;
@@ -393,7 +403,6 @@ class SIDExplorer
           oscViews[voice]->drawEnveloppe( voice, 0, HEADER_HEIGHT + ( voice*VOICE_HEIGHT ) );
         }
 
-        if( showFPS ) renderFPS();
         vTaskDelay(10);
       }
       stoprender = false;
@@ -462,7 +471,7 @@ class SIDExplorer
         break;
         case SID_STOP_TRACK:
           render = false;
-          log_d("[%d] Track stopped", ESP.getFreeHeap());
+          log_d("[%d] SID_STOP_TRACK", ESP.getFreeHeap());
         break;
       }
     }

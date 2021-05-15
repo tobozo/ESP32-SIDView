@@ -68,11 +68,12 @@ void setup()
 
   Serial.printf("SID Player UI: %d*%d\n", M5.Lcd.width(), M5.Lcd.height() );
   SidViewer = new SIDExplorer( &MD5Config );
+
 }
 
 
 void loop()
 {
-  SidViewer->explore();
+  //SidViewer->explore();
   vTaskDelete( NULL );
 }

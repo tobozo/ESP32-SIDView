@@ -55,7 +55,7 @@ SID_Archive::SID_Archive( MD5FileConfig *c) : cfg(c)
   snprintf( tgzFileName, 256, "/%s.tar.gz", cfg->archive->name );
   snprintf( sidRealPath, 256, "%s/.%s.expanded", cfg->sidfolder, cfg->archive->path );
   snprintf( cachePath,   256, "/tmp/%s.sidcache", cfg->archive->name );
-  #ifdef _SID_HVSC_DOWNLOADER_H_
+  #if defined _SID_HVSC_FILE_INDEXER_H_ && defined SID_DOWNLOAD_ARCHIVES
   PrintProgressBar = &UIPrintProgressBar;
   #endif
 };
@@ -77,16 +77,28 @@ bool SID_Archive::expand()
 {
   UIPrintTitle( cfg->archive->name, "  Expanding Tgz  " );
   setExpanded( false ); // mark the archive as not expanded
-  setTarVerify( false ); // false = faster, true = more reliable
-  setLoggerCallback( targzNullLoggerCallback ); // comment this out to enable debug (spammy)
-  setTarMessageCallback( UIPrintTarProgress ); // show tar filenames
-  setProgressCallback( UIPrintGzProgressBar ); // show overall gzip progress
+
+  TarGzUnpacker *TARGZUnpacker = new TarGzUnpacker();
+
+  TARGZUnpacker->haltOnError( true ); // stop on fail (manual restart/reset required)
+  TARGZUnpacker->setTarVerify( false ); // true = enables health checks but slows down the overall process
+  TARGZUnpacker->setupFSCallbacks( targzTotalBytesFn, targzFreeBytesFn ); // prevent the partition from exploding, recommended
+  TARGZUnpacker->setGzProgressCallback( BaseUnpacker::defaultProgressCallback ); // targzNullProgressCallback or defaultProgressCallback
+  TARGZUnpacker->setLoggerCallback( BaseUnpacker::targzPrintLoggerCallback  );    // gz log verbosity
+  TARGZUnpacker->setTarProgressCallback( BaseUnpacker::defaultProgressCallback ); // prints the untarring progress for each individual file
+  TARGZUnpacker->setTarStatusProgressCallback( BaseUnpacker::defaultTarStatusProgressCallback ); // print the filenames as they're expanded
+  TARGZUnpacker->setTarMessageCallback( BaseUnpacker::targzPrintLoggerCallback ); // tar log verbosity
+
+  //setTarVerify( false ); // false = faster, true = more reliable
+  //setLoggerCallback( targzNullLoggerCallback ); // comment this out to enable debug (spammy)
+  //setTarMessageCallback( UIPrintTarProgress ); // show tar filenames
+  //setProgressCallback( UIPrintGzProgressBar ); // show overall gzip progress
 
   //const char *outfolder = String( String( cfg->sidfolder ) + String("/") ).c_str();
   Serial.printf("Will attempt to expand archive %s to folder %s\n", cfg->archive->name, cfg->sidfolder );
 
-  if(! tarGzExpander( SID_FS, tgzFileName, SID_FS, cfg->sidfolder, nullptr ) ) {
-    Serial.printf("tarGzExpander failed with return code #%d\n", tarGzGetError() );
+  if(! TARGZUnpacker->tarGzExpander( SID_FS, tgzFileName, SID_FS, cfg->sidfolder, nullptr ) ) {
+    Serial.printf("tarGzExpander failed with return code #%d\n", TARGZUnpacker->tarGzGetError() );
     return false;
   }
   Serial.printf("Success!\n");
@@ -134,7 +146,7 @@ bool SID_Archive::hasCache()
 }
 
 
-#ifdef _SID_HVSC_DOWNLOADER_H_
+#if defined _SID_HVSC_FILE_INDEXER_H_ && defined SID_DOWNLOAD_ARCHIVES
 bool SID_Archive::download()
 {
   if( exists() ) {
@@ -275,7 +287,7 @@ void SID_Archive_Checker::checkArchive()
   checkMd5File();
   checkGzFile();
   // now turn off wifi as it ate more than 80Kb ram
-  #ifdef _SID_HVSC_DOWNLOADER_H_
+  #if defined _SID_HVSC_FILE_INDEXER_H_ && defined SID_DOWNLOAD_ARCHIVES
   if( wifiConnected ) {
     wifiOff();
   }
@@ -291,7 +303,7 @@ bool SID_Archive_Checker::checkGzFile( bool force )
   // first pass, download all things
   if( archive != nullptr ) {
     if( !archive->exists() ) {
-      #ifdef _SID_HVSC_DOWNLOADER_H_
+      #if defined _SID_HVSC_FILE_INDEXER_H_ && defined SID_DOWNLOAD_ARCHIVES
       if( !wifiConnected ) stubbornConnect(); // go online
       wifi_occured = true;
       if( !archive->download() ) {
@@ -335,7 +347,7 @@ bool SID_Archive_Checker::checkMd5File( bool force )
   // also download the MD5 checksums file containing song lengths
   if( force || !cfg->fs->exists( cfg->md5filepath ) ) {
     mkdirp( cfg->fs, cfg->md5filepath ); // from ESP32-Targz: create traversing directories if none exist
-    #ifdef _SID_HVSC_DOWNLOADER_H_
+    #if defined _SID_HVSC_FILE_INDEXER_H_ && defined SID_DOWNLOAD_ARCHIVES
     if( !wifiConnected ) stubbornConnect(); // go online
     wifi_occured = true;
     if( !wget( MD5_URL, *cfg->fs, cfg->md5filepath ) ) {
