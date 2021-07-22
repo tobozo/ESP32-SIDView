@@ -33,9 +33,9 @@
 #define _SID_UI_UTILS_H
 
 // some UI dimensions
-#define HEADER_HEIGHT 41                               // arbitrarily chosen height
-#define VOICE_HEIGHT  ((tft.height()-HEADER_HEIGHT)/3) // = 29 on a 128x128
-#define VOICE_WIDTH   tft.width()
+uint32_t HEADER_HEIGHT = 41;                               // arbitrarily chosen height
+uint32_t VOICE_HEIGHT  = ((tft.height()-HEADER_HEIGHT)/3); // = 29 on a 128x128
+uint32_t VOICE_WIDTH   = tft.width();
 
 
 class ScrollableItem
@@ -79,7 +79,6 @@ class ScrollableItem
       } else {
         scrollUgly();
       }
-
     }
 
 
@@ -87,8 +86,13 @@ class ScrollableItem
     {
 
       scrollSprite->setFont( &Font8x8C64 );
+      scrollSprite->setPsram( false );
       uint8_t charwidth = scrollSprite->textWidth( "0" );
-      scrollSprite->createSprite( width+charwidth, height );
+      void* sptr = scrollSprite->createSprite( width+charwidth, height );
+      if( !sptr ) {
+        log_e("Failed to create scroll sprite, aborting");
+        return;
+      }
       scrollSprite->setPaletteColor( 0, C64_DARKBLUE );
       scrollSprite->setPaletteColor( 1, C64_LIGHTBLUE );
 
@@ -167,6 +171,11 @@ class ScrollableItem
 
 
 
+TFT_eSprite *UISprite      = new TFT_eSprite( &tft );
+TFT_eSprite *pgSprite      = new TFT_eSprite( UISprite );
+TFT_eSprite *pgSpriteLeft  = new TFT_eSprite( pgSprite );
+TFT_eSprite *pgSpriteRight = new TFT_eSprite( pgSprite );
+
 static void UIPrintTitle( const char* title, const char* message = nullptr )
 {
   tft.setTextDatum( MC_DATUM );
@@ -182,21 +191,75 @@ static void UIPrintTitle( const char* title, const char* message = nullptr )
 }
 
 
-static void UIPrintProgressBar( float progress, float total=100.0 )
+static void UIPrintProgressBar( float progress, float total=100.0, uint16_t xpos = 64, uint16_t ypos = 64, const char *text="Progress:" )
 {
   static int8_t lastprogress = -1;
   if( (uint8_t)progress != lastprogress ) {
     lastprogress = (uint8_t)progress;
     char progressStr[64] = {0};
-    snprintf( progressStr, 64, "Progress: %3d%s", int(progress), "%" );
-    tft.setTextDatum( MC_DATUM );
+    snprintf( progressStr, 64, "%s %3d%s", text, int(progress), "%" );
+    tft.setTextDatum( TC_DATUM );
     tft.setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
-    tft.drawString( progressStr, tft.width()/2, tft.height()/2 );
+    tft.drawString( progressStr, xpos, ypos );
     //tft.setCursor( tft.height()-(tft.fontHeight()+2), 10 );
     //tft.printf("    heap: %6d    ", ESP.getFreeHeap() );
   }
 }
 
+
+
+static void UIDrawProgressBar( float progress, float total=100.0, uint16_t xpos = 64, uint16_t ypos = 64, const char *text="Progress:" )
+{
+  static int8_t lastprogress = -1;
+  if( (uint8_t)progress != lastprogress ) {
+    lastprogress = (uint8_t)progress;
+    char progressStr[64] = {0};
+    snprintf( progressStr, 64, "%s %3d%s", text, int(progress), "%" );
+
+    int spritewidth = strlen(progressStr)*8;
+    int barwidth = (progress*spritewidth)/100;
+
+    pgSprite->createSprite(spritewidth, 8);
+    pgSprite->fillSprite( C64_DARKBLUE );
+
+    pgSprite->setTextDatum( TC_DATUM );
+    pgSprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+
+    int pgCenter = pgSprite->width()/2;
+
+    if( barwidth <= 0 ) {
+      pgSprite->drawString( progressStr, pgCenter, 0 );
+    } else {
+
+      pgSpriteLeft->createSprite(barwidth, 8);
+      pgSpriteRight->createSprite(spritewidth-barwidth, 8);
+
+      pgSpriteLeft->setTextDatum( TC_DATUM );
+      pgSpriteLeft->setTextColor( C64_DARKBLUE, C64_LIGHTBLUE );
+      pgSpriteLeft->setFont( &Font8x8C64 );
+
+      pgSpriteRight->setTextDatum( TC_DATUM );
+      pgSpriteRight->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+      pgSpriteRight->setFont( &Font8x8C64 );
+
+      pgSpriteLeft->drawString( progressStr, pgCenter, 0 );
+      pgSpriteRight->drawString( progressStr, pgCenter-barwidth, 0 );
+
+      pgSpriteLeft->pushSprite(0, 0);
+      pgSpriteRight->pushSprite(barwidth, 0);
+
+      pgSpriteLeft->deleteSprite();
+      pgSpriteRight->deleteSprite();
+
+    }
+    pgSprite->pushSprite(xpos, ypos);
+    pgSprite->deleteSprite();
+
+  }
+}
+
+
+/*
 static void UIPrintGzProgressBar( uint8_t progress )
 {
   UIPrintProgressBar( (float)progress );
@@ -218,6 +281,8 @@ static void UIPrintTarProgress(const char* format, ...)
   tft.drawString( buffer, tft.width()/2, yPos );
   free( buffer );
 }
+
+*/
 
 /*
 struct vec2 {

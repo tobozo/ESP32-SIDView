@@ -36,11 +36,10 @@ loopmode NVSPrefs::getLoopMode()
   prefs.begin("SIDExplorer");
   uint8_t playerloopmode = (loopmode)prefs.getUChar("loopmode", (uint8_t)SID_LOOP_OFF );
   prefs.end();
-  log_w("Thawed loopmode from NVS: ");
   switch( playerloopmode ) { // validate
-    case SID_LOOP_ON:     log_w("SID_LOOP_ON"); break;
-    case SID_LOOP_RANDOM: log_w("SID_LOOP_RANDOM"); break;
-    case SID_LOOP_OFF:    log_w("SID_LOOP_OFF"); break;
+    case SID_LOOP_ON:     log_w("Thawed loopmode from NVS: SID_LOOP_ON"); break;
+    case SID_LOOP_RANDOM: log_w("Thawed loopmode from NVS: SID_LOOP_RANDOM"); break;
+    case SID_LOOP_OFF:    log_w("Thawed loopmode from NVS: SID_LOOP_OFF"); break;
     default: playerloopmode = SID_LOOP_OFF; break;
   }
   return (loopmode)playerloopmode;
@@ -52,11 +51,10 @@ void NVSPrefs::setLoopMode( loopmode mode )
   prefs.begin("SIDExplorer");
   prefs.putUChar( "loopmode", (uint8_t)mode );
   prefs.end();
-  log_w("Saved loopmode to NVS: ");
   switch( mode ) {
-    case SID_LOOP_ON:     log_w("SID_LOOP_ON"); break;
-    case SID_LOOP_RANDOM: log_w("SID_LOOP_RANDOM"); break;
-    case SID_LOOP_OFF:    log_w("SID_LOOP_OFF"); break;
+    case SID_LOOP_ON:     log_w("Saved loopmode to NVS: SID_LOOP_ON"); break;
+    case SID_LOOP_RANDOM: log_w("Saved loopmode to NVS: SID_LOOP_RANDOM"); break;
+    case SID_LOOP_OFF:    log_w("Saved loopmode to NVS: SID_LOOP_OFF"); break;
   }
 }
 
@@ -91,6 +89,7 @@ void NVSPrefs::getLastPath( char* path )
   prefs.begin("SIDExplorer");
   size_t pathlen = prefs.getString("path", path, 255);
   if( pathlen <= 0 || path[0] != '/' ) {
+    log_w("Defaulting to %s", SID_FOLDER );
     snprintf( path, 255, "%s", SID_FOLDER );
   }
   prefs.end();

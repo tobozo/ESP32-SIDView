@@ -71,6 +71,7 @@ class OscilloView
     TFT_eSprite *oscSprite     = new TFT_eSprite( &tft );
     LowPass     *lowPassFilter = new LowPass();
     int32_t* valuesCache       = nullptr;
+    const char* sptr           = nullptr;
 
     int32_t  graphWidth;
     int32_t  spriteHeight;
@@ -97,7 +98,7 @@ class OscilloView
     int fps = 0;   // frames per second
     int lastfps = -1;
     float fpi = 0; // frames per interval
-    bool showFPS = true;
+    bool showFPS = false;
 
     void renderFPS();
 

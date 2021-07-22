@@ -1,12 +1,8 @@
 
 
 
-typedef struct
-{
-  String name;
-  String path;
-  folderItemType_t type;
-} folderTypeItem_t;
+
+
 //std::vector<folderTypeItem_t> myFolder;
 
 /*
@@ -35,6 +31,8 @@ bool myFolderSorter(const folderTypeItem_t &a, const folderTypeItem_t &b)
   return ret;
 }
 */
+
+
 
 
 
@@ -73,9 +71,10 @@ struct VirtualFolderNoRam : public VirtualFolder
   folderTypeItem_t get( int index )
   {
     if( index<0 || index+1 > folder.size() ) {
-      log_e("Out of bounds query (requesting index %d vs %d), returning first item instead", index, folder.size()-1 );
+      log_e("Out of bounds query (requesting index %d vs %d), returning first item and deleting invalid cache file for folder '%s'", index, folder.size()-1, folderName );
       songCache->deleteCache( folderName );
-      return folder[0];
+      return rootFolder;
+      //return folder[0];
     }
     return folder[index];
   }
@@ -95,7 +94,87 @@ struct VirtualFolderNoRam : public VirtualFolder
 };
 
 
-VirtualFolderNoRam *myVirtualFolder = nullptr;
+
+class FolderNav
+{
+  public:
+    FolderNav(VirtualFolderNoRam *i) : items(i) { }
+    VirtualFolderNoRam *items = nullptr; // virtual folder
+    char path[256]  = {0}; // full path to selected item
+    char dir[256]   = {0}; // folder path where item resides
+    uint16_t pos    = 0;   // item position in folder list
+    uint16_t num    = 0;   // page number
+    uint16_t oldnum = -1;  // previous page number
+    folderItemType_t type; // item type
+    uint16_t count   = 0;  // pages count
+    uint16_t start   = 0;  // page start
+    uint16_t end     = 0;  // page end
+
+    void setPath( const char* p ) {
+      snprintf( path, 255, "%s", p );
+    }
+    void setDir( const char* d ) {
+      snprintf( dir, 255, "%s", d );
+    }
+
+    void freeze() {
+      if( frozen ) {
+        log_e("Should thaw first !! Halting...");
+        while(1) vTaskDelay(1);
+        return;
+      }
+      snprintf( _path, 255, "%s", path );
+      snprintf( _dir,  255, "%s", dir );
+      _pos    = pos;
+      _num    = num;
+      _oldnum = oldnum;
+      _type   = type;
+      _count  = count;
+      _start  = start;
+      _end    = end;
+      frozen      = true;
+    }
+    void thaw() {
+      if( !frozen ) {
+        log_e("Nothing to thaw! Halting...");
+        while(1) vTaskDelay(1);
+        return;
+      }
+      snprintf( path, 255, "%s", _path );
+      snprintf( dir,  255, "%s", _dir );
+      pos    = _pos;
+      num    = _num;
+      oldnum = _oldnum;
+      type   = _type;
+      count  = _count;
+      start  = _start;
+      end    = _end;
+      frozen = false;
+    }
+
+  private:
+
+    bool frozen = false;
+    char _path[256] = {0};
+    char _dir[256]  = {0};
+    uint16_t _pos;
+    uint16_t _num;
+    uint16_t _oldnum;
+    uint16_t _count;
+    uint16_t _start;
+    uint16_t _end;
+    folderItemType_t _type;
+
+};
+
+
+//VirtualFolderNoRam *myVirtualFolder = nullptr;
+FolderNav *Nav = nullptr;
+
+//folderNav_t Nav = {myVirtualFolder,"/", "/", 0,0,0 };
+
+
+
 
 #if 0
 

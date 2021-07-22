@@ -35,7 +35,10 @@
 
 OscilloView::~OscilloView()
 {
-  deinit();
+  if( sptr != nullptr ) {
+    oscSprite->deleteSprite();
+  }
+  //deinit();
 }
 
 OscilloView::OscilloView( uint16_t _width, uint16_t _height ) : graphWidth(_width), spriteHeight(_height)
@@ -49,11 +52,21 @@ void OscilloView::init( SID6581 *_sid, uint32_t freqHz, uint8_t oscType, std::ui
   sid = _sid;
   osc->setFreqHz( freqHz );
   env->reset();
-  oscSprite->setPsram(false);
-  oscSprite->setColorDepth(lgfx::palette_1bit);
   //oscSprite->createSprite( graphWidth, spriteHeight );
-  oscSprite->setPaletteColor( 0, bgcol );
-  oscSprite->setPaletteColor( 1, fgcol );
+  if( sptr == nullptr ) {
+    oscSprite->setPsram(false);
+    oscSprite->setColorDepth(lgfx::palette_1bit);
+    const char* sptr = (const char*)oscSprite->createSprite( graphWidth, spriteHeight );
+    if( !sptr ) {
+      log_d("Not enough ram to create enveloppe sprite");
+      return;
+    }
+    oscSprite->setPaletteColor( 0, bgcol );
+    oscSprite->setPaletteColor( 1, fgcol );
+    oscSprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+    oscSprite->setTextDatum( TL_DATUM );
+  }
+
   timeFrameRatio = float(timeFrameWidth_us) / float(graphWidth); // how many micros per pixel
   bgcolor = bgcol;
   fgcolor = fgcol;
@@ -69,7 +82,7 @@ void OscilloView::init( SID6581 *_sid, uint32_t freqHz, uint8_t oscType, std::ui
 
 void OscilloView::deinit()
 {
-  //oscSprite->deleteSprite();
+
   /*
   if( valuesCache != nullptr ) {
     free( valuesCache );
@@ -155,19 +168,19 @@ void OscilloView::gate( uint8_t val )
 
 void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
 {
-  const char* sptr = (const char*)oscSprite->createSprite( graphWidth, spriteHeight );
-  if( !sptr ) {
-    log_d("Not enough ram to create enveloppe sprite");
-    return;
-  }
-  valuesCache = (int32_t*)sid_calloc( graphWidth+1, sizeof( int32_t ) );
+//   const char* sptr = (const char*)oscSprite->createSprite( graphWidth, spriteHeight );
+//   if( !sptr ) {
+//     log_d("Not enough ram to create enveloppe sprite");
+//     return;
+//   }
+  valuesCache = (int32_t*)calloc( graphWidth+1, sizeof( int32_t ) );
   if( valuesCache == NULL ) {
     log_d("Not enough ram to store enveloppe data");
     return;
   }
-  oscSprite->setPaletteColor( 0, bgcolor );
-  oscSprite->setPaletteColor( 1, fgcolor );
-  //oscSprite->fillSprite( bgcolor );
+  //oscSprite->setPaletteColor( 0, bgcolor );
+  //oscSprite->setPaletteColor( 1, fgcolor );
+  oscSprite->fillSprite( bgcolor );
 
   float    pulsewidth = sid->getPulse(voice);
   uint8_t  waveform   = sid->getWaveForm(voice);
@@ -182,11 +195,11 @@ void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
   __attribute__((unused))
   int      sync       = sid->getSync( voice );
 
-  oscSprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
-  oscSprite->setTextDatum( TL_DATUM );
-  char text[24] = {0};
+  //oscSprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+  //oscSprite->setTextDatum( TL_DATUM );
 
   /*
+  char text[24] = {0};
   int Resonance = sid->getResonance(0);
   int LowHiFilterFreq = sid->getFilterFrequency(0); // The approximate Cutoff Frequency ranges between 30Hz and 10KHz
   int FilterEx = sid->getFilterEX(0);
@@ -243,13 +256,10 @@ void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
   }
 
   if( filtervalue == 1 ) {
-    int HP = sid->getHP(0); // high pass
-    int BP = sid->getBP(0); // band pass
+    //int HP = sid->getHP(0); // high pass
+    //int BP = sid->getBP(0); // band pass
     int LP = sid->getLP(0); // low pass
-
-
     if( LP == 1 ) {
-
       //snprintf( text, 24, "H:%02x B:%02x L:%02x", HP, BP, LP );
       //oscSprite->drawString( text, 0,16 );
       lowPassFilter->SetParameters( 0.75, 0.02 );
@@ -257,9 +267,7 @@ void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
         valuesCache[i] = lowPassFilter->Process( valuesCache[i] );
       }
     }
-
   }
-
 
   if( showFPS )
     renderFPS();
@@ -269,7 +277,7 @@ void OscilloView::drawEnveloppe( int voice, int32_t x, int32_t y )
   }
 
   oscSprite->pushSprite( x, y );
-  oscSprite->deleteSprite();
+  //oscSprite->deleteSprite();
   free( valuesCache );
 
 }

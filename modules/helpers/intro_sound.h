@@ -100,7 +100,7 @@ void soundIntro( SID6581* sid )
   sid->setRelease( 0, 0 ); // 10 (0-15)
   sid->setGate(    0, 0 ); // 1 (0-1)
   vTaskDelete( SID_xTaskHandles[0] );
-  sid->resetsid();
+  sid->soundOff();
 }
 
 

@@ -52,7 +52,7 @@ SIDExplorer* SidViewer = nullptr;
 void setup()
 {
 
-  M5.begin(true, true); // begin both TFT and SD
+  M5.begin(true, true); // don't begin TFT and SD
   tft.setRotation( 2 ); // portrait mode !
 
   #ifdef SD_UPDATABLE
@@ -64,9 +64,10 @@ void setup()
     delay(300);
   #endif
 
-
-
   Serial.printf("SID Player UI: %d*%d\n", M5.Lcd.width(), M5.Lcd.height() );
+  Serial.printf("Main Task Core   : %d (priority=%d)\n", M5.SD_CORE_ID, SID_MAINTASK_PRIORITY );
+  Serial.printf("Draw Task Core   : %d (priority=%d)\n", M5.SD_CORE_ID, SID_DRAWTASK_PRIORITY );
+
   SidViewer = new SIDExplorer( &MD5Config );
 
 }
@@ -74,6 +75,5 @@ void setup()
 
 void loop()
 {
-  //SidViewer->explore();
   vTaskDelete( NULL );
 }

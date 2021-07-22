@@ -8,7 +8,7 @@
 #define SID_CLOCK_PIN 26 // optional
 
 // mandatory defines for this app
-#define SID_FS       SD                                   // from fs::FS filesystem <SD.h>
+#define SID_FS       M5STACK_SD                           // from fs::FS filesystem <SD.h> or ESP32-Chimera-Core.hpp
 #define SID_FOLDER   "/sid"                               // local path on the SD Card, NO TRAILING SLASH, MUST BE A FOLDER
 #define MD5_FOLDER   "/md5"                               // where all the md5 stuff is stored (db file, caches, indexes)
 #define MD5_FILE     MD5_FOLDER "/Songlengths.full.md5"   // local path to the HVSC md5 file
@@ -17,12 +17,55 @@
 #define MD5_URL      "https://hvsc.c64.org/download/C64Music/DOCUMENTS/Songlengths.md5" // [Optional if SID_DOWNLOAD_ARCHIVES flag is enabled] HVSC Songlengths.md5 file as is
 #define HVSC_TGZ_URL "https://phpsecu.re/HVSC-74.tar.gz"  // [Optional if SID_DOWNLOAD_ARCHIVES flag is enabled] tgz archive containing "DEMO", "GAMES" and "MUSICIANS" folders from HVSC
 
+// uncomment one of those
+//#define HID_XPAD
+//#define HID_USB
+#define HID_TOUCH
+#define HID_SERIAL
+
+
+// Some core settings inherit from <SID6581.h> SID_PLAYER_CORE / SID_CPU_CORE / SID_QUEUE_CORE
+
+#if defined HID_USB
+
+  #define SPI_CORE 1
+  #define APP_CORE 0
+
+  #define SID_QUEUE_CORE  APP_CORE  // default = 0
+  #define SID_CPU_CORE    APP_CORE  // default = SID_QUEUE_CORE
+  #define SID_PLAYER_CORE APP_CORE  // default = 1 - SID_QUEUE_CORE
+
+  #define SID_HID_CORE      SPI_CORE
+  #define SID_MAINTASK_CORE APP_CORE
+  #define SID_DRAWTASK_CORE APP_CORE
+
+  #define SID_HID_TASK_PRIORITY 5
+
+#elif defined HID_TOUCH || defined HID_SERIAL || defined HID_XPAD
+
+  //#define SID_QUEUE_CORE 1
+  //#define SID_PLAYER_CORE 1
+
+  #define SID_MAINTASK_CORE 1
+  #define SID_DRAWTASK_CORE 0
+
+#else
+  // TODO: implement Serial
+  #error "Please selectd a HID method (xpad or usb or touch)"
+#endif
+
+
+#define SID_MAINTASK_PRIORITY 5
+#define SID_DRAWTASK_PRIORITY 6
+
+
 
 //#define SD_UPDATABLE          // comment this out to disable SD-Updater ( disabling saves ~3% of program storage space)
-#define SID_DOWNLOAD_ARCHIVES // comment this out if the archives are already on the SD Card ( disabling saves ~42% of program storage space and 40Kb ram)
+//#define SID_DOWNLOAD_ARCHIVES // comment this out if the archives are already on the SD Card ( disabling saves ~42% of program storage space and 40Kb ram)
 // Use this if your ESP has never connected to your WiFi before
 //#define WIFI_SSID "my-wifi-ssid"
 //#define WIFI_PASS "my-wifi-password"
+
 
 // hail the c64 colors !
 #define C64_DARKBLUE      0x4338ccU

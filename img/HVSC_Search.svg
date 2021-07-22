@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/PR-SVG-20010719/DTD/svg10.dtd">
+<svg width="35cm" height="22cm" viewBox="655 102 698 438" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <g>
+    <rect style="fill: #ffffff" x="1152" y="103" width="171.7" height="28"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="1152" y="103" width="171.7" height="28"/>
+    <text font-size="16" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="1237.85" y="122">HVSC Entry</text>
+    <rect style="fill: #ffffff" x="1152" y="131" width="171.7" height="68"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="1152" y="131" width="171.7" height="68"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="1155" y="145">+offset: size_t</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="1155" y="161">+Path: char*</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="1155" y="177">+MD5 Hash: char[33]</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="1155" y="193">+Durations: uint32_t*</text>
+    <rect style="fill: #ffffff" x="1152" y="199" width="171.7" height="8"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="1152" y="199" width="171.7" height="8"/>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="1124.27" y="240.711" width="227.75" height="28"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="1124.27" y="240.711" width="227.75" height="28"/>
+    <text font-size="16" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="1238.14" y="259.711">HVSC SongLengths.md5</text>
+    <rect style="fill: #ffffff" x="1124.27" y="268.711" width="227.75" height="84"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="1124.27" y="268.711" width="227.75" height="84"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="1127.27" y="282.711">+Entry #0: HVSC Entry</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="1127.27" y="298.711">+Entry #1: HVSC Entry</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="1127.27" y="314.711">+Entry #2: HVSC Entry</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="1127.27" y="330.711">+Entry #3: HVSC Entry</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="1127.27" y="346.711">+...</text>
+    <rect style="fill: #ffffff" x="1124.27" y="352.711" width="227.75" height="8"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="1124.27" y="352.711" width="227.75" height="8"/>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="897" y="119" width="171.7" height="28"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="897" y="119" width="171.7" height="28"/>
+    <text font-size="16" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="982.85" y="138">sidpath</text>
+    <rect style="fill: #ffffff" x="897" y="147" width="171.7" height="36"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="897" y="147" width="171.7" height="36"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="900" y="161">+offset: size_t</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="900" y="177">+type: folderItemType</text>
+    <rect style="fill: #ffffff" x="897" y="183" width="171.7" height="8"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="897" y="183" width="171.7" height="8"/>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="912.229" y="231.023" width="140.9" height="28"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="912.229" y="231.023" width="140.9" height="28"/>
+    <text font-size="16" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="982.679" y="250.023">sidpath_rank</text>
+    <rect style="fill: #ffffff" x="912.229" y="259.023" width="140.9" height="52"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="912.229" y="259.023" width="140.9" height="52"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="915.229" y="273.023">+rank: int</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="915.229" y="289.023">+sidpath: sidpath</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="915.229" y="305.023">+path: char[255]</text>
+    <rect style="fill: #ffffff" x="912.229" y="311.023" width="140.9" height="8"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="912.229" y="311.023" width="140.9" height="8"/>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="669" y="111" width="148.6" height="28"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="669" y="111" width="148.6" height="28"/>
+    <text font-size="16" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="743.3" y="130">wordpath</text>
+    <rect style="fill: #ffffff" x="669" y="139" width="148.6" height="52"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="669" y="139" width="148.6" height="52"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="672" y="153">+word: char*</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="672" y="169">+pathcount: size_t</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="672" y="185">+path: sidpath*</text>
+    <rect style="fill: #ffffff" x="669" y="191" width="148.6" height="8"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="669" y="191" width="148.6" height="8"/>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="665.354" y="241.289" width="156.3" height="28"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="665.354" y="241.289" width="156.3" height="28"/>
+    <text font-size="16" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="743.504" y="260.289">shard</text>
+    <rect style="fill: #ffffff" x="665.354" y="269.289" width="156.3" height="36"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="665.354" y="269.289" width="156.3" height="36"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="668.354" y="283.289">+wordscount: size_t</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="668.354" y="299.289">+words: wordparth*</text>
+    <rect style="fill: #ffffff" x="665.354" y="305.289" width="156.3" height="8"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="665.354" y="305.289" width="156.3" height="8"/>
+  </g>
+  <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="895.995,155 894.995,155 819.609,155 818.609,155 "/>
+  <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="982.85,192.009 982.85,211.013 982.679,211.013 982.679,230.018 "/>
+  <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="743.504,240.28 743.504,220.143 743.3,220.143 743.3,200.005 "/>
+  <g>
+    <rect style="fill: #ffffff" x="656.707" y="466.682" width="173.35" height="28"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="656.707" y="466.682" width="173.35" height="28"/>
+    <text font-size="16" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="743.382" y="485.682">map:shards_index</text>
+    <rect style="fill: #ffffff" x="656.707" y="494.682" width="173.35" height="36"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="656.707" y="494.682" width="173.35" height="36"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="659.707" y="508.682">+index: char</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="659.707" y="524.682">+size: size_t</text>
+    <rect style="fill: #ffffff" x="656.707" y="530.682" width="173.35" height="8"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="656.707" y="530.682" width="173.35" height="8"/>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="684.284" y="354.318" width="117.8" height="28"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="684.284" y="354.318" width="117.8" height="28"/>
+    <text font-size="16" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="743.184" y="373.318">map:shards</text>
+    <rect style="fill: #ffffff" x="684.284" y="382.318" width="117.8" height="36"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="684.284" y="382.318" width="117.8" height="36"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="687.284" y="396.318">+index: char</text>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="687.284" y="412.318">+shards: shard</text>
+    <rect style="fill: #ffffff" x="684.284" y="418.318" width="117.8" height="8"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="684.284" y="418.318" width="117.8" height="8"/>
+  </g>
+  <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="743.382,465.689 743.382,446.5 743.184,446.5 743.184,427.311 "/>
+  <g>
+    <rect style="fill: #ffffff" x="902.936" y="361.068" width="159.7" height="28"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="902.936" y="361.068" width="159.7" height="28"/>
+    <text font-size="16" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="982.786" y="380.068">vec:shardoffsets</text>
+    <rect style="fill: #ffffff" x="902.936" y="389.068" width="159.7" height="20"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="902.936" y="389.068" width="159.7" height="20"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:monospace;font-style:normal;font-weight:normal" x="905.936" y="403.068">+sidpath_rank</text>
+    <rect style="fill: #ffffff" x="902.936" y="409.068" width="159.7" height="8"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="902.936" y="409.068" width="159.7" height="8"/>
+  </g>
+  <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="982.679,320.029 982.679,340.045 982.786,340.045 982.786,360.061 "/>
+  <polyline style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="743.184,353.314 743.184,338.5 743.504,338.5 743.504,314.261 "/>
+  <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1237.96" y1="207.97" x2="1238.02" y2="239.719"/>
+  <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1069.7" y1="155" x2="1151" y2="155"/>
+</svg>

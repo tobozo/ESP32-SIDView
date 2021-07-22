@@ -44,7 +44,7 @@ void Oscillator::setFreqHz( uint32_t hz )
   freqms     = hz * 1000.0;
   if( hz == 0 ) return;
   period = 1000000 / freqHz;
-  log_v("freqHz: %4d, freqms: %8d, periodms: %5d\n", freqHz, freqms, period );
+  log_v("freqHz: %4d, freqms: %8d, periodms: %5d", freqHz, freqms, period );
 }
 
 float Oscillator::getTriangle( int32_t utime )

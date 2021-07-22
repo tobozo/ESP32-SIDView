@@ -50,11 +50,13 @@ SongCacheManager::SongCacheManager( SIDTunesPlayer *_sidPlayer )
   #endif
   sidPlayer = _sidPlayer;
   fs = sidPlayer->fs;
+  wpio->fs = fs;
   basename  = (char*)sid_calloc( 256, sizeof(char) );
   basepath  = (char*)sid_calloc( 256, sizeof(char) );
   cachepath = (char*)sid_calloc( 256, sizeof(char) );
   md5path   = (char*)sid_calloc( 256, sizeof(char) );
   cleanPath.reserve(256);
+
 }
 
 
@@ -88,6 +90,7 @@ void SongCacheManager::init( const char* path )
 
 bool SongCacheManager::exists( SID_Meta_t *song )
 {
+  log_e("Accessing Filesystem from core #%d", xPortGetCoreID() );
   fs::File cacheFile = fs->open( cachepath, FILE_READ );
   if( ! cacheFile ) return false;
   bool ret = false;
@@ -137,7 +140,10 @@ bool SongCacheManager::insert( SID_Meta_t *song, bool append )
   } else {
     songCacheFile = fs->open( cachepath, "w" ); // truncate
   }
-  if( ! songCacheFile ) return false;
+  if( ! songCacheFile ) {
+    log_e("Can't insert entry");
+    return false;
+  }
   snprintf( song->filename, 255, "%s", md5path ); // don't use the full path
   size_t objsize = sizeof( SID_Meta_t );// + song->subsongs*sizeof(uint32_t);
   size_t written_bytes = songCacheFile.write( (uint8_t*)song, objsize );
@@ -149,8 +155,9 @@ bool SongCacheManager::insert( SID_Meta_t *song, bool append )
 
 const String SongCacheManager::makeCachePath( const char* path, const char* cachename )
 {
-  if( path == NULL || path[0] == '\0' ) {
-    log_e("Bad path");
+  if( path == NULL || path[0] != '/' ) {
+    log_e("Bad path request '%s' for cache name '%s', halting", path, cachename);
+    while(1) vTaskDelay(1);
     return "";
   }
   if( cachename == NULL || cachename[0] == '\0' ) {
@@ -162,7 +169,12 @@ const String SongCacheManager::makeCachePath( const char* path, const char* cach
   } else {
     cleanPath = String(path) + "/" + String(cachename);
   }
-  log_v("Generated path %s from %s and %s", cleanPath.c_str(), path, cachename );
+  if( cleanPath[0] != '/' ) {
+    log_w("makeCachePath generated bad path '%s' from '%s' + '%s', halting", cleanPath.c_str(), path, cachename );
+    while(1) vTaskDelay(1);
+  } else {
+    log_d("makeCachePath generated valid path '%s' from '%s' + '%s'", cleanPath.c_str(), path, cachename );
+  }
   return cleanPath;
 }
 
@@ -309,10 +321,12 @@ bool SongCacheManager::update( const char* path, SID_Meta_t *song )
 bool SongCacheManager::get( const char* md5path, SID_Meta_t *song )
 {
   char *fullpath = (char*)sid_calloc( 256, sizeof(char) );
+  // TODO: avoid double slashes in md5path
   snprintf( fullpath, 255, "%s/%s", SID_FOLDER, md5path );
   init( fullpath );
   free( fullpath );
   bool ret = false;
+  log_e("Accessing Filesystem from core #%d", xPortGetCoreID() );
   fs::File cacheFile = fs->open( cachepath, FILE_READ );
   if( ! cacheFile ) return false;
   size_t bufsize = sizeof(SID_Meta_t);
@@ -321,8 +335,8 @@ bool SongCacheManager::get( const char* md5path, SID_Meta_t *song )
     const SID_Meta_t* tmpsong = (const SID_Meta_t*)SID_Meta_tbuf;
     if( strcmp( (const char*)tmpsong->filename, md5path ) == 0  ) {
       memcpy( song, tmpsong, bufsize );
-      song->durations = (uint32_t*)sid_calloc(song->subsongs, sizeof(uint32_t) );
-      cacheFile.readBytes( (char*)song->durations, song->subsongs*sizeof(uint32_t) );
+      //song->durations = (uint32_t*)sid_calloc(song->subsongs, sizeof(uint32_t) );
+      //cacheFile.readBytes( (char*)song->durations, song->subsongs*sizeof(uint32_t) );
       ret = true;
       break;
     }
@@ -334,13 +348,14 @@ bool SongCacheManager::get( const char* md5path, SID_Meta_t *song )
 
 
 
-bool SongCacheManager::scanPaginatedFolderCache( const char* pathname, size_t offset, size_t maxitems, folderElementPrintCb printCb, activityTicker tickerCb )
+bool SongCacheManager::scanPaginatedFolderCache( const char* pathname, size_t offset, size_t maxitems, folderElementPrintCb printCb, activityTickerCb tickerCb )
 {
   String dirCacheFile = dirCachePath( pathname );
   if( dirCacheFile == "" ) {
     log_e("Bad dirCache filename");
     return false;
   }
+  //log_e("Accessing Filesystem from core #%d", xPortGetCoreID() );
   if( ! fs->exists( dirCacheFile ) ) {
     log_e("Cache file %s does not exist, create it first !", dirCacheFile.c_str() );
   }
@@ -349,7 +364,11 @@ bool SongCacheManager::scanPaginatedFolderCache( const char* pathname, size_t of
     log_e("Unable to access dirCacheFile %s", dirCacheFile.c_str() );
     return false;
   }
-
+/*
+  if( getDirCacheSize( &DirCache ) == 0 ) {
+    return false; // skip folder size line
+  }
+*/
   getDirCacheSize( &DirCache ); // skip folder size line
   bool ret = true;
 
@@ -395,7 +414,7 @@ bool SongCacheManager::scanPaginatedFolderCache( const char* pathname, size_t of
 
 
 
-bool SongCacheManager::scanFolderCache( const char* pathname, folderElementPrintCb printCb, activityTicker tickerCb )
+bool SongCacheManager::scanFolderCache( const char* pathname, folderElementPrintCb printCb, activityTickerCb tickerCb )
 {
   return scanPaginatedFolderCache( pathname, 0, 0, printCb, tickerCb );
 }
@@ -409,9 +428,10 @@ bool SongCacheManager::dirCacheUpdate( fs::File *dirCache, const char*_itemName,
     return false;
   }
 
-  if( getDirCacheSize( dirCache ) == 0 ) return false; // skip folder size line
+  getDirCacheSize( dirCache );
+  //if( getDirCacheSize( dirCache ) == 0 ) return false; // skip folder size line
 
-  log_d("[%d] Will update item %s in cache %s", ESP.getFreeHeap(), dirCache->name(), _itemName );
+  log_d("[%d] Will update item %s in cache %s", ESP.getFreeHeap(), fs_file_path(dirCache), _itemName );
   while( dirCache->available() ) {
     size_t linepos = dirCache->position();
     uint8_t typeint = dirCache->read();
@@ -459,7 +479,7 @@ bool SongCacheManager::dirCacheAdd( fs::File *dirCache, const char*itemName, fol
   }
   if( type == F_PLAYLIST ) {
     // notify parent this folder has a playlist
-    const char *dName = dirname( (char *)dirCache->name() );
+    const char *dName = dirname( (char *)fs_file_path(dirCache) );
     const char *parent = dirname( (char *)dName );
     String parentCacheName = String( parent ) + "/.dircache";
     if( !fs->exists( parentCacheName ) ) {
@@ -467,6 +487,10 @@ bool SongCacheManager::dirCacheAdd( fs::File *dirCache, const char*itemName, fol
     } else {
       bool ret = false;
       fs::File parentDirCache = fs->open( parentCacheName, "r+" );
+      if( !parentDirCache ) {
+        log_e("Unable open parent cache file %s as R+, aborting", parentCacheName.c_str() );
+        return false;
+      }
       if( dirCacheUpdate( &parentDirCache, itemName, F_SUBFOLDER ) ) {
         log_d("[%d] Folder type updated in parent cache file %s for playlist item %s", ESP.getFreeHeap(), parentCacheName.c_str(), itemName );
         ret = true;
@@ -478,17 +502,23 @@ bool SongCacheManager::dirCacheAdd( fs::File *dirCache, const char*itemName, fol
     }
   } else {
     log_d("Writing dircache entry %s (%d bytes) at offset %d", itemName, strlen( itemName )+2, dirCache->position() );
-    dirCache->write( (uint8_t)type );
-    dirCache->write( ':' );
-    dirCache->write( (uint8_t*)itemName, strlen( itemName ) ); // no null terminating
-    dirCache->write( '\n' );
+    size_t written_bytes = 0;
+    size_t expect_bytes = ( sizeof(uint8_t) + 1 + strlen( itemName ) + 1 );
+    written_bytes += dirCache->write( (uint8_t)type );
+    written_bytes += dirCache->write( ':' );
+    written_bytes += dirCache->write( (uint8_t*)itemName, strlen( itemName ) ); // no null terminating
+    written_bytes += dirCache->write( '\n' );
+    if( written_bytes != expect_bytes ) {
+      log_e("Write failed, expected %d bytes and got %d for item '%s'", expect_bytes, written_bytes, itemName );
+      return false;
+    }
   }
   return true;
 }
 
 
 
-void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, activityTicker tickerCb )
+void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, activityTickerCb tickerCb )
 {
   size_t dirCacheFileSize = dirCacheFile->size();
   int avail_ram = ESP.getFreeHeap() - 100000; // don't go under 100k heap
@@ -496,10 +526,14 @@ void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, act
   size_t entries = 0;
 
   getDirCacheSize( dirCacheFile ); // skip folder size line
+  // if( getDirCacheSize( dirCacheFile ) == 0 ) {
+  //   log_e("Bad sorting request, aborting");
+  //   return;
+  // }
 
   if( use_ram  ) {
     // ram sort
-    log_d("[%d] Ram sorting %s", ESP.getFreeHeap(), dirCacheFile->name() );
+    log_d("[%d] Ram sorting %s", ESP.getFreeHeap(), fs_file_path(dirCacheFile) );
     std::vector<String> thisFolder;
     while( dirCacheFile->available() ) {
       String blah = dirCacheFile->readStringUntil( '\n' );
@@ -508,14 +542,18 @@ void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, act
       thisFolder.push_back( blah );
     }
 
-    log_d("Collected %d items from file %s", thisFolder.size(), dirCacheFile->name() );
+    log_d("Collected %d items from file %s", thisFolder.size(), fs_file_path(dirCacheFile) );
 
     getDirCacheSize( dirCacheFile ); // skip folder size line
-
+    // if( getDirCacheSize( dirCacheFile ) == 0 ) {
+    //   log_e("Bad sorting request, aborting");
+    //   return;
+    // }
+    //
     tickerCb( "Sort", thisFolder.size() );
     std::sort( thisFolder.begin(), thisFolder.end() );
 
-    log_d("std::sorted %d entries in file %s (at offset %d)", thisFolder.size(), dirCacheFile->name(), dirCacheFile->position() );
+    log_d("std::sorted %d entries in file %s (at offset %d)", thisFolder.size(), fs_file_path(dirCacheFile), dirCacheFile->position() );
 
     for( int i=0;i<thisFolder.size();i++ ) {
       size_t startpos = dirCacheFile->position();
@@ -525,13 +563,11 @@ void SongCacheManager::dirCacheSort(fs::File *dirCacheFile, size_t maxitems, act
       dirCacheFile->seek( startpos + folderSize  ); // dafuq ?
       dirCacheFile->write( '\n' );
       log_d("Written sorted dircache entry '%s' (%d bytes) at offsets [%d-%d]", folderData, folderSize, startpos, dirCacheFile->position() );
-
       tickerCb( "Save", entries );
-
       entries++;
     }
 
-    log_d("Written %d entries in file %s", entries, dirCacheFile->name() );
+    log_d("Written %d entries in file %s", entries, fs_file_path(dirCacheFile) );
 
   } else {
     // disk sort
@@ -553,11 +589,14 @@ void SongCacheManager::deleteCache( const char* pathname )
 
 
 
-size_t SongCacheManager::getDirCacheSize( const char*pathname )
+size_t SongCacheManager::getDirCacheSize( const char* pathname )
 {
   String dircachepath = dirCachePath( pathname );
   File cacheFile = fs->open( dircachepath );
-  if( !cacheFile ) return 0;
+  if( !cacheFile ) {
+    log_e("Unable to open dirCachePath %s", pathname );
+    return 0;
+  }
   size_t cachesize = getDirCacheSize( &cacheFile );
   cacheFile.close();
   return cachesize;
@@ -574,11 +613,11 @@ size_t SongCacheManager::getDirCacheSize( fs::File *cacheFile )
   memcpy( &cachesize, sizeToByte, sizeof(size_t) );
   // skip separator
   if( cacheFile->read() != '\n' ) {
-    log_e("[%s] Unexpected byte while thawing %d as %d bytes: %02x %02x %02x %02x (%s)", cacheFile->name(), cachesize, sizeof(size_t), sizeToByte[0], sizeToByte[1], sizeToByte[2], sizeToByte[3], (const char*)sizeToByte );
+    log_e("[%s] Unexpected byte while thawing %d as %d bytes: %02x %02x %02x %02x (%s)", fs_file_path(cacheFile), cachesize, sizeof(size_t), sizeToByte[0], sizeToByte[1], sizeToByte[2], sizeToByte[3], (const char*)sizeToByte );
     delete sizeToByte;
-    return 0;
+    return -1;
   } else {
-    log_d("Cache file %s claims %d elements", cacheFile->name(), cachesize );
+    log_d("Cache file %s claims %d elements", fs_file_path(cacheFile), cachesize );
   }
   delete sizeToByte;
   cacheFile->seek(5);
@@ -594,17 +633,16 @@ void SongCacheManager::setDirCacheSize( fs::File *dirCacheFile, size_t totalitem
   //dirCacheFile->seek(0);
   dirCacheFile->write( sizeToByte, sizeof(size_t) );
   dirCacheFile->write( '\n' );
-  log_d("Cache file %s will claim %d elements", dirCacheFile->name(), totalitems );
+  log_d("Cache file %s will claim %d elements", fs_file_path(dirCacheFile), totalitems );
   delete sizeToByte;
   //dircachesize = totalitems;
 }
 
 
 
-bool SongCacheManager::scanPaginatedFolder( const char* pathname, folderElementPrintCb printCb, activityTicker tickerCb, size_t offset, size_t maxitems )
+bool SongCacheManager::scanPaginatedFolder( const char* pathname, folderElementPrintCb printCb, activityTickerCb tickerCb, size_t offset, size_t maxitems )
 {
-  File DirCache;
-  File root = fs->open( pathname );
+  fs::File root = fs->open( pathname );
   if(!root){
     log_e("Fatal: failed to open %s directory\n", pathname);
     return false;
@@ -614,15 +652,18 @@ bool SongCacheManager::scanPaginatedFolder( const char* pathname, folderElementP
     return false;
   }
 
-  bool folder_has_playlist = folderHasPlaylist( pathname );
+  fs::File DirCache;
 
-  if( folder_has_playlist ) {
+
+  if( offset == 0 ) {
+    folder_has_playlist = folderHasPlaylist( pathname );
+    if( folder_has_playlist ) {
     // insert it now as it'll be ignored
-    if( offset == 0 ) {
       printCb( pathname, F_PLAYLIST );
       maxitems--;
     }
   }
+
   root.close();
 
   bool ret = scanPaginatedFolderCache( pathname, offset, maxitems, printCb, tickerCb );
@@ -632,21 +673,25 @@ bool SongCacheManager::scanPaginatedFolder( const char* pathname, folderElementP
 
 
 
-bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb printCb, activityTicker tickerCb, size_t maxitems, bool force_regen )
+
+bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb printCb, activityTickerCb tickerCb, size_t maxitems, bool force_regen )
 {
-  File DirCache;
-  File root = fs->open( pathname );
-  if(!root){
-    log_e("Fatal: failed to open %s directory\n", pathname);
+  fs::File root = fs->open( pathname );
+  if( ! root ) {
+    log_e("Fatal: failed to open '%s' directory from core #%d", pathname, xPortGetCoreID() );
     return false;
   }
   if(!root.isDirectory()){
     log_e("Fatal: %s is not a directory\b", pathname);
     return false;
+  } else {
+    log_e("Successfully opened dir %s for scanning", pathname );
   }
 
-  bool folder_has_playlist = folderHasPlaylist( pathname );
-  bool folder_has_cache    = folderHasCache( pathname );
+  fs::File DirCache;
+
+  folder_has_playlist = folderHasPlaylist( pathname );
+  folder_has_cache    = folderHasCache( pathname );
 
   bool build_cache = false;
   //bool cache_built = false;
@@ -674,7 +719,7 @@ bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb pr
     log_d("[%d] Scanned folder cache", ESP.getFreeHeap() );
     return ret;
   } else {
-    log_d("Generating cached folder (init to size_t 0)");
+    log_d("Generating cached folder (init to size_t 0) for path '%s'", pathname);
     DirCache = fs->open( dirCachePath( pathname ), FILE_WRITE );
     setDirCacheSize( &DirCache, 0 );
   }
@@ -682,24 +727,21 @@ bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb pr
   File file = root.openNextFile();
   while( file ) {
     if( file.isDirectory()  ) {
-      if( folderHasPlaylist( file.name() ) ) {
-        //printCb( file.name(), F_SUBFOLDER );
-        dirCacheAdd( &DirCache, file.name(), F_SUBFOLDER );
+      if( folderHasPlaylist( fs_file_path(&file) ) ) {
+        dirCacheAdd( &DirCache, fs_file_path(&file), F_SUBFOLDER );
       } else {
-        //printCb( file.name(), F_SUBFOLDER_NOCACHE );
-        dirCacheAdd( &DirCache, file.name(), F_SUBFOLDER_NOCACHE );
+        dirCacheAdd( &DirCache, fs_file_path(&file), F_SUBFOLDER_NOCACHE );
       }
       totalitems++;
     } else {
       // handle both uppercase and lowercase of the extension
-      String fName = String( file.name() );
+      String fName = String( fs_file_path(&file) );
       fName.toLowerCase();
 
       char cleanfilename[255] = {0};
-      setCleanFileName( cleanfilename, 255, "%s", file.name() );
+      setCleanFileName( cleanfilename, 255, "%s", fs_file_path(&file) );
 
       if( fName.endsWith( ".sid" ) && !file.isDirectory() ) {
-        //printCb( file.name(), F_SID_FILE );
         dirCacheAdd( &DirCache, cleanfilename, F_SID_FILE );
 
         /*
@@ -725,6 +767,7 @@ bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb pr
       log_w("Total items limitation reached at %d, truncating folder", maxItemsPerFolder );
       break;
     }
+    vTaskDelay(1); // feed the dog
   }
 
   DirCache.close();
@@ -754,11 +797,15 @@ bool SongCacheManager::scanFolder( const char* pathname, folderElementPrintCb pr
 
 
 
-bool SongCacheManager::buildSidCacheFromDirCache( fs::File *sortedDirCache, activityTicker tickerCb )
+bool SongCacheManager::buildSidCacheFromDirCache( fs::File *sortedDirCache, activityTickerCb tickerCb )
 {
   sortedDirCache->seek(0);
 
-  if( getDirCacheSize( sortedDirCache ) == 0 ) return false; // skip folder size line
+  if( getDirCacheSize( sortedDirCache ) == 0 ) {
+    log_e("Dir cache is empty!");
+    return false; // skip folder size line
+  }
+  log_d("Building SidCache for dir %s", sortedDirCache->name() );
   bool cache_built = false;
 
   //size_t currentoffset = 0;
@@ -795,6 +842,7 @@ bool SongCacheManager::buildSidCacheFromDirCache( fs::File *sortedDirCache, acti
       }
       tickerCb("Cache", saved );
     }
+    vTaskDelay(1); // feed the dog
   }
 
   _end:
@@ -817,6 +865,7 @@ void SongCacheManager::makeCachePath( const char* _cachepath, char* cachepath )
     snprintf( cachepath, 255, "%s", _cachepath );
   }
 }
+
 
 
 // TODO: deprecate this
@@ -891,6 +940,7 @@ bool SongCacheManager::getInfoFromCacheItem( size_t itemNum )
   }
 
   delay(200);
+  log_d("Accessing FS from core #%d", xPortGetCoreID() );
 
   if(! fs->exists( cachepath ) ) {
     log_e("Error! Cache file %s does not exist", cachepath );
@@ -920,31 +970,38 @@ bool SongCacheManager::getInfoFromCacheItem( size_t itemNum )
   while( cacheFile.available() ) {
     cacheFile.readBytes( SID_Meta_buf, bufsize );// == bufsize
     itemCount++;
+    // seek cache item
     if( itemCount-1 != itemNum ) {
       continue;
     }
+    log_v("Found the item");
 
-    if( sidPlayer->currenttrack != nullptr ) {
-      if( sidPlayer->currenttrack->durations != nullptr ) {
-        free( sidPlayer->currenttrack->durations  );
+    if( currenttrack != nullptr ) {
+      if( currenttrack->durations != nullptr ) {
+        log_v("Track has durations, freeing");
+        free( currenttrack->durations  );
       }
-      free( sidPlayer->currenttrack );
+      log_v("Track needs freeing");
+      free( currenttrack );
     }
 
-    sidPlayer->currenttrack = (SID_Meta_t *)sid_calloc(1,sizeof(SID_Meta_t));
+    currenttrack = (SID_Meta_t *)sid_calloc(1,sizeof(SID_Meta_t));
 
-    if( sidPlayer->currenttrack == NULL ) {
-      log_e("Not enough memory to add song :-(");
+    if( currenttrack == NULL ) {
+      log_e("Unable to alloc %d bytes, aborting", sizeof(SID_Meta_t) );
+      return false;
     } else {
-      memcpy( sidPlayer->currenttrack, (const unsigned char*)SID_Meta_buf, sizeof(SID_Meta_t) );
-      //sidPlayer->currenttrack->fs= &SID_FS;
-      if( !String(sidPlayer->currenttrack->filename).startsWith( SID_FOLDER ) ) {
+      log_v("Copying %d bytes to a %d wide array", sizeof(SID_Meta_t), bufsize+1 );
+      memcpy( currenttrack, (const unsigned char*)SID_Meta_buf, sizeof(SID_Meta_t) );
+      //currenttrack->fs= &SID_FS;
+      if( !String(currenttrack->filename).startsWith( SID_FOLDER ) ) {
         // insert SID_FOLDER before path
-        memmove( sidPlayer->currenttrack->filename+strlen(SID_FOLDER), sidPlayer->currenttrack->filename, strlen(sidPlayer->currenttrack->filename)+strlen(SID_FOLDER) );
-        memcpy( sidPlayer->currenttrack->filename, SID_FOLDER, strlen( SID_FOLDER ) );
+        log_v("Insert SID_FOLDER before path");
+        memmove( currenttrack->filename+strlen(SID_FOLDER), currenttrack->filename, strlen(currenttrack->filename)+strlen(SID_FOLDER) );
+        memcpy( currenttrack->filename, SID_FOLDER, strlen( SID_FOLDER ) );
       }
       // alloc variable memory for subsong durations
-      sidPlayer->currenttrack->durations = nullptr; // (uint32_t*)sid_calloc( sidPlayer->currenttrack->subsongs, sizeof(uint32_t) );
+      currenttrack->durations = nullptr; // (uint32_t*)sid_calloc( sidPlayer->currenttrack->subsongs, sizeof(uint32_t) );
       //cacheFile.readBytes( (char*)sidPlayer->currenttrack->durations, sidPlayer->currenttrack->subsongs*sizeof(uint32_t) );
       //songdebug( sidPlayer->currenttrack );
       ret = true;
@@ -955,8 +1012,635 @@ bool SongCacheManager::getInfoFromCacheItem( size_t itemNum )
   cacheFile.close();
   if( itemNum == 0 ) CacheItemSize = itemCount;
   CacheItemNum  = itemNum;
-  log_d("Loaded %d songs into player (cache size: %d)", sidPlayer->currenttrack->subsongs, CacheItemSize );
+  log_d("Loaded %d songs into player (cache size: %d)", currenttrack->subsongs, CacheItemSize );
   //sidPlayer->setSongstructCachePath( SID_FS, cachepath );
   return ret;
 }
+
+
+
+
+
+// ************************
+// keywords / path indexing
+// ************************
+
+
+
+bool SongCacheManager::buildSIDWordsIndex( const char* folderPath, activityTickerCb _ticker,  activityProgressCb _progress )
+{
+
+  if( !psramInit() ) {
+    log_e("Unable to init psram");
+    return false;
+  }
+  if( _ticker != nullptr ) {
+    log_w("Setting up activity ticker");
+    ticker = _ticker;
+  }
+  if( _progress != nullptr ) {
+    progress = _progress;
+  }
+  // create keywords dictionary from songlengths (memory)
+  bool kwret = parseKeywords( true, true, 4, 6 );
+  if( !kwret ) {
+    log_e("Something went wrong while parsing keywords, aborting");
+    return false;
+  }
+  // spread dictionary in shards (memory)
+  keywordsToShards();
+  // remove existing shards from filesystem
+  bool ret = cleanupShards();
+  if( !ret ) return false;
+  // create shard files
+  size_t total_written = 0;
+
+  for( auto const& item : shards ) {
+    size_t shard_written = 0;
+    const char shardname = item.first;
+    shard_t* shard = item.second;
+    const char shardnameCStr[2] = {shardname,'\0'};
+
+    log_w("[Letter '%s' has %d words]", shardnameCStr, shard->wordscount );
+    // alpha sort shard->words
+    shard->sortWords();
+
+    for( int i=0;i<shard->wordscount;i++ ) {
+
+      wpio->set( shard->words[i] );
+      wpio->sortPaths(); // type-sort paths, kinda useless if only folders are indexed
+
+      size_t path_written = wpio->writeShard();
+
+      if( path_written == 0 ) {
+        log_e("Empty write for path #%d / shard '%s'", i, shardnameCStr );
+      } else {
+        log_v("Wrote %d bytes for path #%d / shard '%s'", path_written, i, shardnameCStr );
+      }
+      shard_written += path_written;
+      vTaskDelay(1);
+    }
+    if( shard_written == 0 ) {
+      log_e("Empty write for shard '%s'", shardnameCStr );
+    }
+    total_written += shard_written;
+    log_v("written %d bytes (total=%d so far)", shard_written, total_written );
+  }
+
+  // close last shard file
+  wpio->closeShardFile();
+  wpio->listShardYard();
+
+  /*
+  uint8_t g1 = wpio->guessShardNum( "wodnik" ); // real (true positive)
+  uint8_t g2 = wpio->guessShardNum( "142" ); // real (true positive)
+  uint8_t g3 = wpio->guessShardNum( "456" ); // guessed (false positive)
+  uint8_t g4 = wpio->guessShardNum( "bac" ); // guessed (true negative, not in list)
+  uint8_t g5 = wpio->guessShardNum( "zzzzzz" ); // guessed (true negative, outside list)
+  log_w("Guess results: %x, %x, %x, %x, %x", g1, g2, g3, g4,g5 );
+  */
+
+  if( !wpio->saveShardYard() ) {
+    log_e("Unable to save shardyard");
+    return false;
+  }
+
+  wpio->freeShardYard();
+
+
+  return true;
+}
+
+
+
+bool SongCacheManager::loadShardsIndex()
+{
+  if( shardsIdx.size() > 0 ) {
+    log_w("Shards index already loaded!");
+    return true;
+  }
+  if( !fs->exists( SHARDS_INDEX ) ) {
+    log_e("No shards index to load, reset wcache first!");
+    return false;
+  }
+  fs::File shardIdxFile = fs->open( SHARDS_INDEX );
+  if( !shardIdxFile ) {
+    log_e("Unable to open shard index file %s", SHARDS_INDEX );
+    return false;
+  }
+  size_t idx_size = 0;
+  size_t freeMemBefore = ESP.getFreePsram();
+  while( shardIdxFile.available() ) {
+    const char shardname = shardIdxFile.read();
+    size_t wordscount = 0;
+    size_t read_bytes = shardIdxFile.readBytes( (char*)&wordscount, sizeof(size_t));
+    if( read_bytes == sizeof(size_t) ) {
+      shardsIdx[shardname] = wordscount;
+      idx_size += read_bytes;
+    } else {
+      log_e("Bad content, expecting %d bytes, got %d, aborting read", sizeof(size_t), read_bytes );
+      break;
+    }
+  }
+  shardIdxFile.close();
+  log_w("[Before:%d, After:%d], Loaded %d bytes", freeMemBefore, ESP.getFreePsram(), idx_size );
+  return idx_size > 0;
+}
+
+
+
+
+
+bool SongCacheManager::find( const char* sentence, folderElementPrintCb printCb, size_t offset, size_t maxitems )
+{
+  searchResults.clear();
+
+  size_t sentence_len = strlen( sentence );
+
+  if( strstr( sentence, " " ) == NULL ) {
+    // simple word search
+    if(sentence_len<4) maxitems = 8; // don't spam
+    if( !findFolder( sentence, nullptr, offset, maxitems ) ) return false;
+  } else {
+    bool found = false;
+    char* sentence_arr = (char*)sid_calloc( sentence_len+1, sizeof( char ) );
+    if( sentence_arr == NULL ) {
+      log_e("Can't alloc %d bytes for sentence", sentence_len+1 );
+      return false;
+    }
+    memcpy( sentence_arr, sentence, sentence_len );
+    char* token = strtok(sentence_arr, " ");
+     // loop through the string to extract all other tokens
+    while( token != NULL ) {
+      if ( findFolder( String(token).c_str(), nullptr, offset, maxitems*2 ) ) found = true;
+      token = strtok(NULL, " ");
+    }
+    if( !found ) return false;
+  }
+
+  // sort results by offset address to reduce seek distance while populating
+  std::sort(searchResults.begin(), searchResults.end(), [=](sidpath_rank_t a, sidpath_rank_t b) {
+    return a.sidpath.offset < b.sidpath.offset;
+  });
+
+  File md5file = fs->open( MD5_FILE );
+  if( !md5file ) {
+    log_e("Unable to open %s", MD5_FILE );
+    return false;
+  }
+
+  // gather paths from offsets
+  for( int i=0;i<searchResults.size();i++ ) {
+    md5file.seek( searchResults[i].sidpath.offset );
+    String fname  = md5file.readStringUntil('\n'); // read filename
+    if( fname[0]!=';') {
+      log_e("Invalid read at offset %d", md5file.position() );
+      break; // something wrong, not a valid offset
+    }
+    fname.replace("; ", "");
+    if( searchResults[i].sidpath.type == F_SUBFOLDER ) {
+      String bname = gnu_basename( fname );
+      fname = fname.substring(0, fname.length() - ( bname.length() + 1 ) );
+    }
+    log_d("[Result #%d] '%s'", i, fname.c_str() );
+    snprintf( searchResults[i].path, 255, "%s%s", SID_FOLDER, fname.c_str() );
+  }
+
+  log_d("sorting by rank");
+  // sort by rank first for pertinence
+  std::sort(searchResults.begin(), searchResults.end(), [=](sidpath_rank_t a, sidpath_rank_t b) {
+    return a.rank > b.rank;
+    //if( a.rank == b.rank ) return a.sidpath->offset < b.sidpath->offset; // same rank = alphabetical order
+    //if( a.rank > b.rank ) return true; // higher rank = hoist
+    //return a.sidpath->offset < b.sidpath->offset;
+  });
+
+  int printed = 0;
+  for( int i=0;i<searchResults.size();i++ ) {
+    if( i >= offset && printed+1 < maxitems ) {
+      printCb( searchResults[i].path, searchResults[i].sidpath.type );
+      printed++;
+    }
+  }
+
+  md5file.close();
+  return true;
+}
+
+
+
+
+bool SongCacheManager::findFolder( const char* keyword, folderElementPrintCb printCb, size_t offset, size_t maxitems, bool exact )
+{
+
+  /*
+  if( SidDictSize == 0 || SidDict == nullptr ) {
+    if( ! loadShardsIndex() ) {
+      log_e("Unable to load shards index, reset wcache first?");
+      return;
+    }
+  }
+  */
+
+  if( !wpio->loadShardYard() ) {
+    log_e("Unable to load shardyard, aborting");
+    return false;
+  }
+
+  uint8_t shardId = wpio->guessShardNum( keyword );
+  if( shardId == 0xff ) {
+    log_w("keyword %s appears in no shard so far", keyword);
+    return false;
+  }
+
+  size_t results = wpio->findKeyword( shardId, keyword, offset, maxitems, exact, insertResult);
+  log_w("Search yielded %d results", results);
+  return results > 0;
+
+/*
+
+  // TODO: get shardname from real index
+  const char shardname = keyword[0];
+  if( ! loadShard( shardname ) ) {
+    log_e("Unable to load shard '%s', incomplete wcache reset?", String(shardname).c_str() );
+    return;
+  }
+
+  size_t found = 0;
+  size_t kept = 0;
+  String keywordStr = String(keyword);
+  //std::vector<sidpath_t*> offsets;
+
+  // look in that particular shard first
+  {
+    const shard_t* shard = shards[shardname];
+    log_w("[Free:%d] Shard '%s' has %d words", ESP.getFreePsram(), String(shardname).c_str(), shard->wordscount );
+    for(int i=0;i<shard->wordscount;i++) {
+      wordpath_t* wp = shard->words[i];
+      int rank = 0;
+      if( strcmp( wp->word, keyword ) == 0 ) rank = 100;
+      else if( strstr( wp->word, keyword ) !=NULL ) rank = 33;
+      if( rank > 0 ) {
+        for( int j=0;j<wp->pathcount;j++ ) {
+          found++;
+          if( found >= offset ) {
+            if( kept+1 < maxitems ) {
+              kept += insertOffset( wp->paths[j], rank ) ? 1 : 0;
+            }
+          }
+          if( kept >= maxitems ) return;
+        }
+      }
+    }
+  }
+
+  if( kept == 0 || !exact ) {
+    // search whole shardyard
+    for( auto const& item : shards ) {
+      const char sn = item.first;
+      if( shardname == sn ) continue; // skip already searched shard
+      const shard_t* shard = item.second;
+      for(int i=0;i<shard->wordscount;i++) {
+        wordpath_t* wp = shard->words[i];
+        int rank = 10;
+        if( strstr( wp->word, keyword ) !=NULL ) {
+          for( int j=0;j<wp->pathcount;j++ ) {
+            found++;
+            if( found >= offset ) {
+              if( kept+1 < maxitems ) {
+                kept += insertOffset( wp->paths[j], rank ) ? 1 : 0;
+              }
+            }
+            if( kept >= maxitems ) return;
+          }
+        }
+      }
+    }
+  }
+
+  log_w("[Free:%d] Search yielded %d total results (max=%d)", ESP.getFreePsram(), kept, maxitems);
+*/
+}
+
+
+
+void SongCacheManager::clearDict()
+{
+  /*
+  for( int i=SidDictSize; i>0; i-- ) {
+    if( SidDict[i] != NULL ) {
+      SidDict[i]->clear();
+      SidDict[i] = NULL;
+    }
+  }
+  if( SidDict != NULL ) {
+    free(SidDict);
+    SidDict = NULL;
+  }
+  SidDictSize = 0;
+  SidDictMemSize = 0;
+  */
+}
+
+
+
+bool SongCacheManager::parseKeywords( bool parse_files, bool parse_folders, size_t KeywordMinLenFolder,  size_t KeywordMinLenFile )
+{
+  File md5file = fs->open( MD5_FILE );
+  if( !md5file ) {
+    log_e("Unable to open %s", MD5_FILE );
+    return false;
+  }
+  String fname, md5line, dirName, lastDirName = "";
+  size_t fsize = md5file.size();
+  size_t words_count = 0;
+  size_t folders_count = 0;
+  size_t files_count = 0;
+  size_t keywords_in_folder = 0;
+
+  wpio->resetBanMap();
+
+  while( md5file.available() ) {
+    int64_t itemoffset = md5file.position();
+    fname  = md5file.readStringUntil('\n'); // read filename
+    if( fname.c_str()[0] == '[' ) continue; // skip header
+    md5line = md5file.readStringUntil('\n'); // read md5 hash and song lengths
+    if( fname[0]!=';') {
+      log_w("Invalid read at offset %d", md5file.position() );
+      break; // something wrong, not a valid offset
+    }
+    fname.replace("; ", "");
+    String bname = gnu_basename( fname );
+    dirName = fname.substring( 0, fname.length() - (bname.length()+1) ); // +1 is for the trailing slash
+    if( dirName != lastDirName ) {
+      size_t wcount = 0;
+      if( parse_folders ) {
+        wpio->keywordsInfolder.clear();
+        wcount = indexItemWords( dirName.c_str(), F_SUBFOLDER, itemoffset, KeywordMinLenFolder ); // index folder names with min keyword len=3
+      }
+      words_count += wcount;
+      if( lastDirName != "" ) {
+        Serial.printf( "    %-32s | +%d\n", lastDirName.c_str(), keywords_in_folder );
+      }
+      lastDirName = dirName;
+      keywords_in_folder = wcount;
+      folders_count++;
+    } else {
+      files_count++;
+      keywords_in_folder++;
+    }
+    if( parse_files ) {
+      words_count += indexItemWords( fname.c_str(), F_SID_FILE, itemoffset, KeywordMinLenFile ); // index file names with min keyword len=4
+    }
+    if( progress ) {
+      progress( itemoffset, fsize, words_count, files_count, folders_count );
+    }
+  }
+  wpio->keywordsInfolder.clear();
+  Serial.printf( "    %-32s | +%d\n", lastDirName.c_str(), keywords_in_folder );
+  md5file.close();
+  log_w("[*] Parsing produced %d unique keywords from {%d files, %d folders}", words_count, files_count, folders_count );
+  log_w("[*] MemFree=%d, SidDictSize = %d", ESP.getFreePsram(), SidDictSize );
+
+  for( auto item : ban_map ) {
+    size_t kwlen = item.first;
+    std::sort( ban_map[kwlen].begin(), ban_map[kwlen].end(), [=]( ban_keyword_count_t a, ban_keyword_count_t b ) {
+      return a.count > b.count;
+    });
+    Serial.printf("\n // Len = %d\n", item.first );
+    for( int i=0; i<ban_map[kwlen].size(); i++ ) {
+      if( i%8==0 ) Serial.println();
+      Serial.printf(" {\"%s\",%d},", ban_map[kwlen][i].word.c_str(), ban_map[kwlen][i].count );
+    }
+  }
+
+  return true;
+}
+
+
+
+void SongCacheManager::keywordsToShards() {
+  log_w("Spreading keywords into shards (memory), this may take a while");
+  size_t offsetscount = 0;
+  //size_t totalpaths = 0;
+  size_t totalbytes = 0;
+
+  for( int i=0; i<SidDictSize; i++ ) {
+    vTaskDelay(1);
+    const char shardname = SidDict[i]->word[0];
+    auto search = shards.find( shardname );
+    if( search != shards.end() ) { // update existing
+      shard_t* shard = search->second;
+      shard->addWord( SidDict[i] );
+    } else { // insert
+      shard_t* shard = (shard_t*)sid_calloc(1, sizeof(shard_t));
+      shard->name = shardname;
+      shard->addWord( SidDict[i] );
+      shards[shardname] = shard;
+    }
+    totalbytes += wpio->size( SidDict[i] );
+    //totalbytes += strlen(SidDict[i]->word);
+    //totalbytes += SidDict[i]->pathcount*sizeof(size_t);
+    offsetscount   += SidDict[i]->pathcount;
+  }
+
+  log_w("DictSize=%d, Shards=%d, Paths=%d", SidDictSize, shards.size(), offsetscount );
+  // ideally a 7bits numbered shard should contain sizeof(dictionary)/16 bytes
+  //size_t bytes_per_shard = totalbytes/16;
+  //bytes_per_shard = bytes_per_shard+256 - (bytes_per_shard%256);
+  wpio->setShardYard( 16, totalbytes );
+  //log_w("[Total wordpaths: %d bytes] = %d bytes per shard", totalbytes, bytes_per_shard );
+}
+
+
+
+bool SongCacheManager::cleanupShards() {
+  if( !fs->exists( SHARDS_FOLDER ) ) {
+    log_w("Creating shards folder at %s", SHARDS_FOLDER );
+    fs->mkdir( SHARDS_FOLDER );
+  } else {
+    log_w("Purging shards folder at %s", SHARDS_FOLDER );
+    fs::File root = fs->open( SHARDS_FOLDER );
+    if(!root){
+      log_e("Failed to open shards directory");
+      return false;
+    }
+    if(!root.isDirectory()){
+      log_e("%s is not a directory", SHARDS_FOLDER );
+      return false;
+    }
+    fs::File file = root.openNextFile();
+    while( file ) {
+      vTaskDelay(1);
+      if( !file.isDirectory() ) {
+        String deleteName = String(SHARDS_FOLDER) + "/" + String( fs_file_path(&file) );
+        file.close();
+        log_w("Deleting file %s", deleteName.c_str() );
+        fs->remove( deleteName );
+      } else {
+        file.close();
+      }
+      file = root.openNextFile();
+    }
+    file.close();
+    root.close();
+  }
+  return true;
+}
+
+
+
+
+void SongCacheManager::addWordPathToDict(  wordpath_t* wp )
+{
+  if( SidDict == nullptr ) {
+    SidDict = (wordpath_t**)sid_calloc(SidDictBlockSize, sizeof(wordpath_t*));
+    SidDictMemSize = SidDictBlockSize;
+    if( SidDict == NULL ) {
+      log_e("Unable to alloc %d bytes for keyword", 2*sizeof(wordpath_t*));
+      return;
+    } else {
+      log_w("[Free:%d] Alloc init ok", ESP.getFreePsram() );
+    }
+  } else {
+    if( SidDictSize+1 > SidDictMemSize ) {
+      SidDict = (wordpath_t**)sid_realloc(SidDict, (SidDictSize+SidDictBlockSize+1)*sizeof(wordpath_t*) );
+      SidDictMemSize += SidDictBlockSize;
+    }
+  }
+  SidDict[SidDictSize] = wp;
+  SidDictSize++;
+}
+
+
+
+wordpath_t* SongCacheManager::getWordPathFrom( const char* word )
+{
+  if( SidDict == nullptr) {
+    if( SidDictSize > 0 ) {
+      log_e("Dictionary was deleted!");
+    }
+    return NULL;
+  }
+
+  for( int i=0; i<SidDictSize; i++ ) {
+    if( SidDict[i]->word == NULL ) continue;
+    if( strcmp( SidDict[i]->word, word ) == 0 ) {
+      return SidDict[i];
+    }
+  }
+  return NULL;
+}
+
+
+
+size_t SongCacheManager::indexItemWords( const char* itemPath, folderItemType_t itemType, int64_t offset, size_t KeywordMinLen )
+{
+  SID_Meta_t song;
+  snprintf( song.filename, 255, "%s", itemPath );
+  if( offset == -1 ) {
+    offset = sidPlayer->MD5Parser->MD5Index->find( MD5_FILE_IDX, itemPath );
+  }
+  int indexed_words = 0;
+  if( offset > -1 ) {
+    // fine
+  } else { // don't bother indexing unknown md5
+    log_w("Ignoring %s", itemPath );
+    vTaskDelay(1);
+    return 0;
+  }
+
+  String sentence = gnu_basename( itemPath ); // don't index folder name
+  size_t sentence_len = sentence.length();
+  // replace unwanted chars by spaces, lowercase the rest
+  for( int i=0;i<sentence_len; i++ ) {
+    switch(sentence[i]) {
+      case '/': case '-': case '_': case '.': case ';':
+        sentence[i] = ' ';
+      break;
+      default: // WARNING: NOT UTF8 safe
+        sentence[i] = tolower(sentence[i]);
+      break;
+    }
+  }
+  if( itemType == F_SID_FILE ) { // remove trailing ".sid" extension
+    sentence[sentence_len-4] = '\0'; // snip
+    sentence_len -= 4;
+  }
+  char* sentence_arr = (char*)sid_calloc( sentence_len+1, sizeof( char ) );
+  if( sentence_arr == NULL ) {
+    log_e("Can't alloc %d bytes for sentence", sentence_len+1 );
+    return 0;
+  }
+  memcpy( sentence_arr, sentence.c_str(), sentence_len );
+  char* token = strtok(sentence_arr, " ");
+  size_t tokenlen = 0;
+  String tokenStr = "";
+   // loop through the string to extract all other tokens
+  while( token != NULL ) {
+
+    tokenStr = String(token);
+    tokenStr.trim();
+    tokenlen = tokenStr.length();
+
+    if( wpio->isBannedKeyword(token) ) {
+      log_d("Ignored keyword: %s", tokenStr.c_str() );
+      goto _next_token;
+    }
+
+    if( tokenlen >= KeywordMinLen ) {
+      wordpath_t* wp = getWordPathFrom( tokenStr.c_str() );
+      if( wp != NULL ) { // found, update shard if applicable
+        if( wpio->keywordsInfolder[wp->word]  && wpio->keywordsInfolder[wp->word] >= wpio->max_paths_in_folder ) {
+          if( wpio->keywordsInfolder[wp->word] == wpio->max_paths_in_folder ) {
+            log_d("Keyword %s has reached max foldercount (%d)", tokenStr.c_str(), wpio->max_paths_in_folder );
+          }
+          wpio->keywordsInfolder[wp->word]++;
+          goto _next_token;
+        } else if( wp->pathcount+1 > wpio->max_paths_per_keyword ) {
+          log_w("Keyword %s has reached max pathcount (%d) and won't get more insertions", tokenStr.c_str(), wp->pathcount );
+          wpio->addBannedKeyword( tokenStr.c_str(), wp->pathcount);
+          goto _next_token;
+        } else { // update shard
+          if( wpio->addPath(offset, itemType, wp) ) {
+            log_v("[%d / %d] Increasing %s to %d, offset=%d", ESP.getFreeHeap(), SidDictSize, tokenStr.c_str(), wp->pathcount+1, int(offset) );
+            if( !wpio->keywordsInfolder[wp->word] ) wpio->keywordsInfolder[wp->word] = 0; // this check is not necessary
+            wpio->keywordsInfolder[wp->word]++;
+          } else {
+            log_e("An error occured while adding a keyword, aborting");
+            goto _final;
+          }
+        }
+      } else { // not found, create shard
+        if( wpio->set( offset, itemType, tokenStr.c_str() ) ) {
+          log_v("[%d / %d] Adding %s to dictionary, offset=%ld", ESP.getFreeHeap(), SidDictSize, tokenStr.c_str(), int(offset));
+          wp = wpio->getwp();
+          addWordPathToDict( wp );
+          if( !wpio->keywordsInfolder[wp->word] ) wpio->keywordsInfolder[wp->word] = 0; // this check is not necessary
+          wpio->keywordsInfolder[wp->word]++;
+        } else {
+          log_e("An error occured while adding a keyword, aborting");
+          goto _final;
+        }
+      }
+      indexed_words++;
+      if( ticker != nullptr ) {
+        ticker( wp->word, wp->pathcount );
+      } else {
+        vTaskDelay(1);
+      }
+    }
+    _next_token: token = strtok(NULL, " ");
+  }
+
+  _final:
+  free( sentence_arr );
+  vTaskDelay(1);
+  log_d("[Free=%d,Total=%d][+%d] %s", ESP.getFreePsram(), SidDictSize, indexed_words, sentence.c_str() );
+  return indexed_words;
+}
+
+
+
+
 
