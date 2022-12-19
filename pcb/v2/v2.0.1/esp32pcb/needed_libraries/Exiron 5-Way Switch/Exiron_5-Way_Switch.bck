@@ -1,0 +1,11 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP Exiron_5-Way_Switch
+F http://cdn.sparkfun.com/datasheets/BreakoutBoards/5-Way_Tactile_Switch_BOB_v10.pdf
+$ENDCMP
+#
+$CMP SF303GJ26
+F https://www.sparkfun.com/datasheets/Components/Buttons/SF303GJ26-3.pdf
+$ENDCMP
+#
+#End Doc Library

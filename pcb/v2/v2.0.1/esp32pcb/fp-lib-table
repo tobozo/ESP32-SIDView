@@ -1,0 +1,4 @@
+(fp_lib_table
+  (lib (name "AudioJack")(type "KiCad")(uri "/home/vRAk/_src/c64/sid6581/esp32-fpgasid-daugterboard/mod/AudioJack.3dshapes")(options "")(descr ""))
+  (lib (name 74HC595)(type KiCad)(uri /home/vRAk/_src/c64/kicad_ddc_pico_fnirs/test_setup.pretty/74HC595.pretty/)(options "")(descr ""))
+)

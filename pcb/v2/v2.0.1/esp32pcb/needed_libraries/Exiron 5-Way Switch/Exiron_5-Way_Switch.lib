@@ -1,0 +1,24 @@
+EESchema-LIBRARY Version 2.4
+#encoding utf-8
+#
+# Exiron_5-Way_Switch
+#
+DEF Exiron_5-Way_Switch S 0 40 Y Y 1 F N
+F0 "S" 0 400 50 H V C CNN
+F1 "Exiron_5-Way_Switch" 0 500 50 H V C CNN
+F2 "Exiron 5-Way Switch:Exiron_5-Way_Switch" -250 -150 50 H I C CNN
+F3 "" -250 -150 50 H I C CNN
+ALIAS SF303GJ26
+DRAW
+S 300 350 -250 -350 0 1 0 f
+X - 1 -350 -300 100 R 50 50 1 1 w
+X R 2 -350 -200 100 R 50 50 1 1 O
+X D 3 -350 -100 100 R 50 50 1 1 O
+X L 4 -350 0 100 R 50 50 1 1 O
+X C 5 -350 100 100 R 50 50 1 1 O
+X U 6 -350 200 100 R 50 50 1 1 O
+X + 7 -350 300 100 R 50 50 1 1 W
+ENDDRAW
+ENDDEF
+#
+#End Library

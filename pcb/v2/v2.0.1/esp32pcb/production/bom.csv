@@ -1,0 +1,13 @@
+Designator,Footprint,Quantity,Value,LCSC Part #
+10uf_2,CP_Radial_D5.0mm_P2.50mm,1,C3,
+10uf,CP_Radial_D5.0mm_P2.50mm,1,C1,
+1K,R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal,1,R1,
+1MHz OSC,AEL9710A,1,AEL9710A,
+1uf,CP_Radial_D5.0mm_P2.50mm,1,C2,
+"75HC595_2, 75HC595",DIP-16_W7.62mm_Socket,2,74HC595,
+"C4, C5",C_Disc_D3.0mm_W1.6mm_P2.50mm,2,C(222),
+DD06AJSA,DD06AJSA,1,U2,
+ESP32-SID v2.0.1,D32Pro_HeadersOnly,1,LolinD32pro,
+J1,3.5MM_SWITCHCRAFT_35RAPC4BHN2,1,Audio Out,
+PHI Select,SolderJumper-3_P1.3mm_Open_RoundedPad1.0x1.5mm,1,JP1,
+SID,DIP-28_W15.24mm_Socket,1,MOS6581_6582_8580SID,

@@ -1,0 +1,280 @@
+2022-12-06 21:09:54.032 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-06 21:09:54.054 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-06 21:09:55.728 [main] INFO  Opening 'freerouting.rules'...
+2022-12-06 21:09:55.730 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-06 21:09:55.967 [Thread-0] INFO  Starting auto-routing...
+2022-12-06 21:09:55.969 [main] TRACE Method 'MainApplication.main()' was performed in 2,08 seconds.
+2022-12-06 21:09:59.039 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board 'd8b54366fec91bb7189a46be687fd653' making 113 changes' was performed in 2,82 seconds.
+2022-12-06 21:09:59.708 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board 'acf95c577fc75907e7e9539aada697cd' making 15 changes' was performed in 0,62 seconds.
+2022-12-06 21:10:00.136 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #3 on board '76f3e0afd3b0479e9c55f68725cd1db4' making 6 changes' was performed in 0,38 seconds.
+2022-12-06 21:10:00.257 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #4 on board '34f553c3b2ea75c493d960ad139087dc' making 4 changes' was performed in 0,07 seconds.
+2022-12-06 21:10:00.725 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #5 on board '92ac5a063c85af3f4b82591f12deba60' making 10 changes' was performed in 0,42 seconds.
+2022-12-06 21:10:00.766 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #6 on board 'fd5bde02fc82a5511bf2dc254d4b61e7' making 0 changes' was performed in 0,01 seconds.
+2022-12-06 21:10:00.768 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 4,78 seconds.
+2022-12-06 21:10:00.769 [Thread-0] INFO  Auto-routing was completed in 4,78 seconds.
+2022-12-06 21:10:00.771 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-06 21:10:04.953 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #1 with 0 items, 2 vias and 1 017 427,70 trace length running on 3 threads.' was performed in 4,17 seconds.
+2022-12-06 21:10:07.654 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #2 with 66 items, 1 vias and 1 002 457,62 trace length running on 3 threads.' was performed in 2,70 seconds.
+2022-12-06 21:10:07.656 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-routeoptimization' was performed in 6,88 seconds.
+2022-12-06 21:10:07.658 [Thread-0] INFO  Route optimization was completed in 6,88 seconds and it improved the design by ~50,91%.
+2022-12-06 21:10:07.677 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()' was performed in 11,71 seconds.
+2022-12-06 21:10:07.687 [Thread-0] INFO  Saving '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.ses'...
+2022-12-06 21:19:44.198 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-06 21:19:44.229 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-06 21:19:46.212 [main] INFO  Opening 'freerouting.rules'...
+2022-12-06 21:19:46.214 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-06 21:19:46.328 [main] TRACE Method 'MainApplication.main()' was performed in 2,28 seconds.
+2022-12-06 21:19:46.331 [Thread-0] INFO  Starting auto-routing...
+2022-12-06 21:19:46.897 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board '0272aa45aedee896ccc4f3bc1628c971' making 23 changes' was performed in 0,33 seconds.
+2022-12-06 21:19:46.952 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board '3fe425193302ea4a4181c0c53086278d' making 0 changes' was performed in 0,01 seconds.
+2022-12-06 21:19:46.954 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 0,62 seconds.
+2022-12-06 21:19:46.955 [Thread-0] INFO  Auto-routing was completed in 0,62 seconds.
+2022-12-06 21:19:46.956 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-06 21:20:00.578 [AWT-EventQueue-0] ERROR Cannot invoke "app.freerouting.geometry.planar.FloatPoint.rotate(double, app.freerouting.geometry.planar.FloatPoint)" because "p_point" is null
+java.lang.NullPointerException: Cannot invoke "app.freerouting.geometry.planar.FloatPoint.rotate(double, app.freerouting.geometry.planar.FloatPoint)" because "p_point" is null
+	at app.freerouting.boardgraphics.CoordinateTransform.board_to_screen(CoordinateTransform.java:80) ~[freerouting-1.6.2.jar:unspecified]
+	at app.freerouting.interactive.InteractiveState.mouse_wheel_moved(InteractiveState.java:84) ~[freerouting-1.6.2.jar:unspecified]
+	at app.freerouting.interactive.BoardHandling.mouse_wheel_moved(BoardHandling.java:700) ~[freerouting-1.6.2.jar:unspecified]
+	at app.freerouting.gui.BoardPanel$4.mouseWheelMoved(BoardPanel.java:108) ~[freerouting-1.6.2.jar:unspecified]
+	at java.awt.Component.processMouseWheelEvent(Component.java:6714) ~[?:?]
+	at java.awt.Component.processEvent(Component.java:6398) ~[?:?]
+	at java.awt.Container.processEvent(Container.java:2266) ~[?:?]
+	at java.awt.Component.dispatchEventImpl(Component.java:5001) ~[?:?]
+	at java.awt.Container.dispatchEventImpl(Container.java:2324) ~[?:?]
+	at java.awt.Component.dispatchEvent(Component.java:4833) ~[?:?]
+	at java.awt.LightweightDispatcher.retargetMouseEvent(Container.java:4948) ~[?:?]
+	at java.awt.LightweightDispatcher.processMouseEvent(Container.java:4604) ~[?:?]
+	at java.awt.LightweightDispatcher.dispatchEvent(Container.java:4516) ~[?:?]
+	at java.awt.Container.dispatchEventImpl(Container.java:2310) ~[?:?]
+	at java.awt.Window.dispatchEventImpl(Window.java:2780) ~[?:?]
+	at java.awt.Component.dispatchEvent(Component.java:4833) ~[?:?]
+	at java.awt.EventQueue.dispatchEventImpl(EventQueue.java:773) ~[?:?]
+	at java.awt.EventQueue$4.run(EventQueue.java:722) ~[?:?]
+	at java.awt.EventQueue$4.run(EventQueue.java:716) ~[?:?]
+	at java.security.AccessController.doPrivileged(AccessController.java:399) ~[?:?]
+	at java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:86) ~[?:?]
+	at java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:97) ~[?:?]
+	at java.awt.EventQueue$5.run(EventQueue.java:746) ~[?:?]
+	at java.awt.EventQueue$5.run(EventQueue.java:744) ~[?:?]
+	at java.security.AccessController.doPrivileged(AccessController.java:399) ~[?:?]
+	at java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:86) ~[?:?]
+	at java.awt.EventQueue.dispatchEvent(EventQueue.java:743) ~[?:?]
+	at java.awt.EventDispatchThread.pumpOneEventForFilters(EventDispatchThread.java:203) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEventsForFilter(EventDispatchThread.java:124) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEventsForHierarchy(EventDispatchThread.java:113) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101) ~[?:?]
+	at java.awt.EventDispatchThread.run(EventDispatchThread.java:90) ~[?:?]
+2022-12-06 21:32:30.656 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-06 21:32:30.678 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-06 21:32:32.382 [main] INFO  Opening 'freerouting.rules'...
+2022-12-06 21:32:32.383 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-06 21:32:32.505 [Thread-0] INFO  Starting auto-routing...
+2022-12-06 21:32:32.512 [main] TRACE Method 'MainApplication.main()' was performed in 2,02 seconds.
+2022-12-06 21:32:35.324 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board '928cecae8e00a048b74a7a1d62304e00' making 96 changes' was performed in 2,58 seconds.
+2022-12-06 21:32:35.741 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board 'abf8d15208aa8181d24cde7b3cd9c6de' making 21 changes' was performed in 0,38 seconds.
+2022-12-06 21:32:35.982 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #3 on board '77b2e2e2138cf725450c7ce92f0850be' making 8 changes' was performed in 0,20 seconds.
+2022-12-06 21:32:36.332 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #4 on board 'df459d71023d63381b889f518197d0df' making 7 changes' was performed in 0,30 seconds.
+2022-12-06 21:32:36.454 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #5 on board 'dd6b0dcc8bf6f8fe99f5529d7bf7a671' making 4 changes' was performed in 0,07 seconds.
+2022-12-06 21:32:36.842 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #6 on board '11000cffdceca07e4e8a6c3b963389b9' making 11 changes' was performed in 0,35 seconds.
+2022-12-06 21:32:36.903 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #7 on board '4c4398ed7a1b215c568c0dccf7a04d53' making 0 changes' was performed in 0,01 seconds.
+2022-12-06 21:32:36.910 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 4,40 seconds.
+2022-12-06 21:32:36.916 [Thread-0] INFO  Auto-routing was completed in 4,40 seconds.
+2022-12-06 21:32:36.920 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-06 21:32:39.538 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #1 with 0 items, 1 vias and 847 874,37 trace length running on 3 threads.' was performed in 2,60 seconds.
+2022-12-06 21:32:39.552 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-routeoptimization' was performed in 2,63 seconds.
+2022-12-06 21:32:39.557 [Thread-0] INFO  Route optimization was completed in 2,63 seconds and it improved the design by ~50,75%.
+2022-12-06 21:32:39.572 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()' was performed in 7,07 seconds.
+2022-12-06 21:32:39.582 [Thread-0] INFO  Saving '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.ses'...
+2022-12-07 11:07:32.983 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-07 11:07:33.005 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-07 11:07:34.587 [main] INFO  Opening 'freerouting.rules'...
+2022-12-07 11:07:34.589 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-07 11:07:34.710 [Thread-0] INFO  Starting auto-routing...
+2022-12-07 11:07:34.713 [main] TRACE Method 'MainApplication.main()' was performed in 1,87 seconds.
+2022-12-07 11:07:36.971 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board '90770be7dd05d5e7989f85c30157854f' making 84 changes' was performed in 2,02 seconds.
+2022-12-07 11:07:37.292 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board 'd4ea6b7143e688f7e93ee0a2a5d0d697' making 14 changes' was performed in 0,27 seconds.
+2022-12-07 11:07:37.947 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #3 on board '4cbaefdc2806153f3e29a1a4bc866f31' making 14 changes' was performed in 0,58 seconds.
+2022-12-07 11:07:38.011 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #4 on board '62f2596c907f2124d61aa3b2a88baea3' making 0 changes' was performed in 0,01 seconds.
+2022-12-07 11:07:38.025 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 3,31 seconds.
+2022-12-07 11:07:38.028 [Thread-0] INFO  Auto-routing was completed in 3,31 seconds.
+2022-12-07 11:07:38.030 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-07 11:08:08.433 [AWT-EventQueue-0] ERROR Cannot invoke "app.freerouting.geometry.planar.FloatPoint.rotate(double, app.freerouting.geometry.planar.FloatPoint)" because "p_point" is null
+java.lang.NullPointerException: Cannot invoke "app.freerouting.geometry.planar.FloatPoint.rotate(double, app.freerouting.geometry.planar.FloatPoint)" because "p_point" is null
+	at app.freerouting.boardgraphics.CoordinateTransform.board_to_screen(CoordinateTransform.java:80) ~[freerouting-1.6.2.jar:unspecified]
+	at app.freerouting.interactive.InteractiveState.mouse_wheel_moved(InteractiveState.java:84) ~[freerouting-1.6.2.jar:unspecified]
+	at app.freerouting.interactive.BoardHandling.mouse_wheel_moved(BoardHandling.java:700) ~[freerouting-1.6.2.jar:unspecified]
+	at app.freerouting.gui.BoardPanel$4.mouseWheelMoved(BoardPanel.java:108) ~[freerouting-1.6.2.jar:unspecified]
+	at java.awt.Component.processMouseWheelEvent(Component.java:6714) ~[?:?]
+	at java.awt.Component.processEvent(Component.java:6398) ~[?:?]
+	at java.awt.Container.processEvent(Container.java:2266) ~[?:?]
+	at java.awt.Component.dispatchEventImpl(Component.java:5001) ~[?:?]
+	at java.awt.Container.dispatchEventImpl(Container.java:2324) ~[?:?]
+	at java.awt.Component.dispatchEvent(Component.java:4833) ~[?:?]
+	at java.awt.LightweightDispatcher.retargetMouseEvent(Container.java:4948) ~[?:?]
+	at java.awt.LightweightDispatcher.processMouseEvent(Container.java:4604) ~[?:?]
+	at java.awt.LightweightDispatcher.dispatchEvent(Container.java:4516) ~[?:?]
+	at java.awt.Container.dispatchEventImpl(Container.java:2310) ~[?:?]
+	at java.awt.Window.dispatchEventImpl(Window.java:2780) ~[?:?]
+	at java.awt.Component.dispatchEvent(Component.java:4833) ~[?:?]
+	at java.awt.EventQueue.dispatchEventImpl(EventQueue.java:773) ~[?:?]
+	at java.awt.EventQueue$4.run(EventQueue.java:722) ~[?:?]
+	at java.awt.EventQueue$4.run(EventQueue.java:716) ~[?:?]
+	at java.security.AccessController.doPrivileged(AccessController.java:399) ~[?:?]
+	at java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:86) ~[?:?]
+	at java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:97) ~[?:?]
+	at java.awt.EventQueue$5.run(EventQueue.java:746) ~[?:?]
+	at java.awt.EventQueue$5.run(EventQueue.java:744) ~[?:?]
+	at java.security.AccessController.doPrivileged(AccessController.java:399) ~[?:?]
+	at java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:86) ~[?:?]
+	at java.awt.EventQueue.dispatchEvent(EventQueue.java:743) ~[?:?]
+	at java.awt.EventDispatchThread.pumpOneEventForFilters(EventDispatchThread.java:203) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEventsForFilter(EventDispatchThread.java:124) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEventsForHierarchy(EventDispatchThread.java:113) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101) ~[?:?]
+	at java.awt.EventDispatchThread.run(EventDispatchThread.java:90) ~[?:?]
+2022-12-07 11:08:14.800 [AWT-EventQueue-0] ERROR Cannot invoke "app.freerouting.geometry.planar.FloatPoint.rotate(double, app.freerouting.geometry.planar.FloatPoint)" because "p_point" is null
+java.lang.NullPointerException: Cannot invoke "app.freerouting.geometry.planar.FloatPoint.rotate(double, app.freerouting.geometry.planar.FloatPoint)" because "p_point" is null
+	at app.freerouting.boardgraphics.CoordinateTransform.board_to_screen(CoordinateTransform.java:80) ~[freerouting-1.6.2.jar:unspecified]
+	at app.freerouting.interactive.InteractiveState.mouse_wheel_moved(InteractiveState.java:84) ~[freerouting-1.6.2.jar:unspecified]
+	at app.freerouting.interactive.BoardHandling.mouse_wheel_moved(BoardHandling.java:700) ~[freerouting-1.6.2.jar:unspecified]
+	at app.freerouting.gui.BoardPanel$4.mouseWheelMoved(BoardPanel.java:108) ~[freerouting-1.6.2.jar:unspecified]
+	at java.awt.Component.processMouseWheelEvent(Component.java:6714) ~[?:?]
+	at java.awt.Component.processEvent(Component.java:6398) ~[?:?]
+	at java.awt.Container.processEvent(Container.java:2266) ~[?:?]
+	at java.awt.Component.dispatchEventImpl(Component.java:5001) ~[?:?]
+	at java.awt.Container.dispatchEventImpl(Container.java:2324) ~[?:?]
+	at java.awt.Component.dispatchEvent(Component.java:4833) ~[?:?]
+	at java.awt.LightweightDispatcher.retargetMouseEvent(Container.java:4948) ~[?:?]
+	at java.awt.LightweightDispatcher.processMouseEvent(Container.java:4604) ~[?:?]
+	at java.awt.LightweightDispatcher.dispatchEvent(Container.java:4516) ~[?:?]
+	at java.awt.Container.dispatchEventImpl(Container.java:2310) ~[?:?]
+	at java.awt.Window.dispatchEventImpl(Window.java:2780) ~[?:?]
+	at java.awt.Component.dispatchEvent(Component.java:4833) ~[?:?]
+	at java.awt.EventQueue.dispatchEventImpl(EventQueue.java:773) ~[?:?]
+	at java.awt.EventQueue$4.run(EventQueue.java:722) ~[?:?]
+	at java.awt.EventQueue$4.run(EventQueue.java:716) ~[?:?]
+	at java.security.AccessController.doPrivileged(AccessController.java:399) ~[?:?]
+	at java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:86) ~[?:?]
+	at java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:97) ~[?:?]
+	at java.awt.EventQueue$5.run(EventQueue.java:746) ~[?:?]
+	at java.awt.EventQueue$5.run(EventQueue.java:744) ~[?:?]
+	at java.security.AccessController.doPrivileged(AccessController.java:399) ~[?:?]
+	at java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege(ProtectionDomain.java:86) ~[?:?]
+	at java.awt.EventQueue.dispatchEvent(EventQueue.java:743) ~[?:?]
+	at java.awt.EventDispatchThread.pumpOneEventForFilters(EventDispatchThread.java:203) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEventsForFilter(EventDispatchThread.java:124) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEventsForHierarchy(EventDispatchThread.java:113) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109) ~[?:?]
+	at java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101) ~[?:?]
+	at java.awt.EventDispatchThread.run(EventDispatchThread.java:90) ~[?:?]
+2022-12-07 11:10:03.996 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-07 11:10:04.018 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-07 11:10:05.742 [main] INFO  Opening 'freerouting.rules'...
+2022-12-07 11:10:05.743 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-07 11:10:05.872 [main] TRACE Method 'MainApplication.main()' was performed in 2,02 seconds.
+2022-12-07 11:10:05.871 [Thread-0] INFO  Starting auto-routing...
+2022-12-07 11:10:08.149 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board 'b9e401fc6c2e508c85d6f1dc1c4be275' making 84 changes' was performed in 2,02 seconds.
+2022-12-07 11:10:08.351 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board '9f8987790d93468fac5a0cd5839e0e50' making 14 changes' was performed in 0,15 seconds.
+2022-12-07 11:10:08.847 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #3 on board 'ea8d5282628a6b6a55489cd927f32a75' making 14 changes' was performed in 0,46 seconds.
+2022-12-07 11:10:08.901 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #4 on board 'af2c2af45a8366307c7b07de7c7dba05' making 0 changes' was performed in 0,01 seconds.
+2022-12-07 11:10:08.912 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 3,03 seconds.
+2022-12-07 11:10:08.913 [Thread-0] INFO  Auto-routing was completed in 3,03 seconds.
+2022-12-07 11:10:08.914 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-07 11:10:10.751 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #1 with 0 items, 1 vias and 614 984,40 trace length running on 3 threads.' was performed in 1,83 seconds.
+2022-12-07 11:10:12.199 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #2 with 44 items, 1 vias and 602 178,28 trace length running on 3 threads.' was performed in 1,43 seconds.
+2022-12-07 11:10:12.201 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-routeoptimization' was performed in 3,29 seconds.
+2022-12-07 11:10:12.203 [Thread-0] INFO  Route optimization was completed in 3,29 seconds and it improved the design by ~49,93%.
+2022-12-07 11:10:12.218 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()' was performed in 6,35 seconds.
+2022-12-07 11:10:12.219 [Thread-0] INFO  Saving '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.ses'...
+2022-12-07 11:11:11.816 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-07 11:11:11.838 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-07 11:11:13.178 [main] INFO  Opening 'freerouting.rules'...
+2022-12-07 11:11:13.180 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-07 11:11:13.697 [main] TRACE Method 'MainApplication.main()' was performed in 2,03 seconds.
+2022-12-07 11:11:13.699 [Thread-0] INFO  Starting auto-routing...
+2022-12-07 11:11:15.987 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board 'b9e401fc6c2e508c85d6f1dc1c4be275' making 84 changes' was performed in 2,04 seconds.
+2022-12-07 11:11:16.172 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board '9f8987790d93468fac5a0cd5839e0e50' making 14 changes' was performed in 0,12 seconds.
+2022-12-07 11:11:16.693 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #3 on board 'ea8d5282628a6b6a55489cd927f32a75' making 14 changes' was performed in 0,48 seconds.
+2022-12-07 11:11:16.747 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #4 on board 'af2c2af45a8366307c7b07de7c7dba05' making 0 changes' was performed in 0,01 seconds.
+2022-12-07 11:11:16.748 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 3,05 seconds.
+2022-12-07 11:11:16.749 [Thread-0] INFO  Auto-routing was completed in 3,05 seconds.
+2022-12-07 11:11:16.750 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-07 11:11:18.614 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #1 with 0 items, 1 vias and 614 984,40 trace length running on 3 threads.' was performed in 1,85 seconds.
+2022-12-07 11:11:20.097 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #2 with 44 items, 1 vias and 602 178,28 trace length running on 3 threads.' was performed in 1,48 seconds.
+2022-12-07 11:11:20.099 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-routeoptimization' was performed in 3,35 seconds.
+2022-12-07 11:11:20.101 [Thread-0] INFO  Route optimization was completed in 3,35 seconds and it improved the design by ~49,93%.
+2022-12-07 11:11:20.115 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()' was performed in 6,42 seconds.
+2022-12-07 11:11:20.116 [Thread-0] INFO  Saving '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.ses'...
+2022-12-07 11:16:12.239 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-07 11:16:12.268 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-07 11:16:13.709 [main] INFO  Opening 'freerouting.rules'...
+2022-12-07 11:16:13.711 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-07 11:16:13.914 [main] TRACE Method 'MainApplication.main()' was performed in 1,83 seconds.
+2022-12-07 11:16:13.917 [Thread-0] INFO  Starting auto-routing...
+2022-12-07 11:16:15.966 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board '76048cfad60e9de4fa6006fb68f5dead' making 78 changes' was performed in 1,81 seconds.
+2022-12-07 11:16:16.354 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board '1300d2deeb15fa76486755b3f31158c2' making 16 changes' was performed in 0,34 seconds.
+2022-12-07 11:16:16.873 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #3 on board 'df0f386f2b5e18e0f51da73b4d3b100c' making 7 changes' was performed in 0,48 seconds.
+2022-12-07 11:16:17.211 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #4 on board 'f4aa1fcf47cb10d5f46808fb9c2707de' making 4 changes' was performed in 0,30 seconds.
+2022-12-07 11:16:17.671 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #5 on board '607aad59cf691c6307c3b713bb431b54' making 4 changes' was performed in 0,43 seconds.
+2022-12-07 11:16:18.040 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #6 on board 'c9ceac0c7fb2d56c7b0d89616652e0a3' making 6 changes' was performed in 0,34 seconds.
+2022-12-07 11:16:18.074 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #7 on board 'b7e41acaf1c165ef25269c7e7e3a5602' making 0 changes' was performed in 0,01 seconds.
+2022-12-07 11:16:18.076 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 4,15 seconds.
+2022-12-07 11:16:18.077 [Thread-0] INFO  Auto-routing was completed in 4,15 seconds.
+2022-12-07 11:16:18.078 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-07 11:23:48.101 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-07 11:23:48.123 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-07 11:23:49.761 [main] INFO  Opening 'freerouting.rules'...
+2022-12-07 11:23:49.762 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-07 11:23:49.860 [main] TRACE Method 'MainApplication.main()' was performed in 1,91 seconds.
+2022-12-07 11:23:49.859 [Thread-0] INFO  Starting auto-routing...
+2022-12-07 11:23:51.907 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board '9f928ca2800619177519a77819822c7c' making 85 changes' was performed in 1,81 seconds.
+2022-12-07 11:23:52.117 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board '4e93ee503b44081e168d53f11fb940f9' making 14 changes' was performed in 0,17 seconds.
+2022-12-07 11:23:52.896 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #3 on board 'f3c0629b20d6be6dddbf497a1942770a' making 8 changes' was performed in 0,74 seconds.
+2022-12-07 11:23:52.933 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #4 on board '6c727594b8d1e0eda2193482221ff766' making 0 changes' was performed in 0,01 seconds.
+2022-12-07 11:23:52.935 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 3,07 seconds.
+2022-12-07 11:23:52.936 [Thread-0] INFO  Auto-routing was completed in 3,07 seconds.
+2022-12-07 11:23:52.937 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-07 11:23:54.934 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #1 with 0 items, 0 vias and 638 521,06 trace length running on 3 threads.' was performed in 1,99 seconds.
+2022-12-07 11:23:54.936 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-routeoptimization' was performed in 2,00 seconds.
+2022-12-07 11:23:54.938 [Thread-0] INFO  Route optimization was completed in 2,00 seconds.
+2022-12-07 11:23:54.948 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()' was performed in 5,09 seconds.
+2022-12-07 11:23:54.950 [Thread-0] INFO  Saving '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.ses'...
+2022-12-07 11:33:57.416 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-07 11:33:57.436 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-07 11:33:59.027 [main] INFO  Opening 'freerouting.rules'...
+2022-12-07 11:33:59.034 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-07 11:33:59.156 [main] TRACE Method 'MainApplication.main()' was performed in 1,89 seconds.
+2022-12-07 11:33:59.157 [Thread-0] INFO  Starting auto-routing...
+2022-12-07 11:34:00.919 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board '94962081dd095b176ffca9dfd90249c0' making 74 changes' was performed in 1,52 seconds.
+2022-12-07 11:34:01.317 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board 'c5aa40805d7d98524467d67c02a804a5' making 11 changes' was performed in 0,35 seconds.
+2022-12-07 11:34:01.832 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #3 on board '1e5e5e4b484982395b598081b23274f9' making 10 changes' was performed in 0,47 seconds.
+2022-12-07 11:34:01.881 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #4 on board 'fd51bc5bda615d588d40fb4973ea80ac' making 0 changes' was performed in 0,01 seconds.
+2022-12-07 11:34:01.883 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 2,72 seconds.
+2022-12-07 11:34:01.885 [Thread-0] INFO  Auto-routing was completed in 2,72 seconds.
+2022-12-07 11:34:01.886 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-07 11:34:03.850 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #1 with 0 items, 1 vias and 571 132,69 trace length running on 3 threads.' was performed in 1,95 seconds.
+2022-12-07 11:34:05.090 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #2 with 39 items, 1 vias and 569 869,01 trace length running on 3 threads.' was performed in 1,24 seconds.
+2022-12-07 11:34:07.253 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #3 with 39 items, 0 vias and 582 242,67 trace length running on 3 threads.' was performed in 2,16 seconds.
+2022-12-07 11:34:07.255 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-routeoptimization' was performed in 5,37 seconds.
+2022-12-07 11:34:07.257 [Thread-0] INFO  Route optimization was completed in 5,37 seconds and it improved the design by ~49,03%.
+2022-12-07 11:34:07.270 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()' was performed in 8,11 seconds.
+2022-12-07 11:34:07.274 [Thread-0] INFO  Saving '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.ses'...
+2022-12-07 11:34:28.969 [main] INFO  Freerouting v1.6.2 (build-date: 2022-07-13)
+2022-12-07 11:34:28.991 [main] INFO  Opening '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.dsn'...
+2022-12-07 11:34:30.590 [main] INFO  Opening 'freerouting.rules'...
+2022-12-07 11:34:30.591 [main] ERROR File 'freerouting.rules' was not found.
+2022-12-07 11:34:30.804 [main] TRACE Method 'MainApplication.main()' was performed in 1,98 seconds.
+2022-12-07 11:34:30.806 [Thread-0] INFO  Starting auto-routing...
+2022-12-07 11:34:31.211 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #1 on board '08bfc27b2a36dd85b0dc30fcbe063e9f' making 15 changes' was performed in 0,16 seconds.
+2022-12-07 11:34:31.292 [Thread-0] TRACE Method 'BatchAutorouter.autoroute_pass #2 on board '4fb628308d8c42ccdffc021a3f971d6a' making 0 changes' was performed in 0,01 seconds.
+2022-12-07 11:34:31.307 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-autorouting' was performed in 0,49 seconds.
+2022-12-07 11:34:31.311 [Thread-0] INFO  Auto-routing was completed in 0,49 seconds.
+2022-12-07 11:34:31.312 [Thread-0] INFO  Starting route optimization on 3 threads...
+2022-12-07 11:34:31.558 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #1 with 0 items, 0 vias and 585 413,82 trace length running on 3 threads.' was performed in 0,24 seconds.
+2022-12-07 11:34:31.722 [Thread-0] TRACE Method 'BatchOptRouteMT.opt_route_pass #2 with 4 items, 0 vias and 585 413,82 trace length running on 3 threads.' was performed in 0,15 seconds.
+2022-12-07 11:34:31.724 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()-routeoptimization' was performed in 0,41 seconds.
+2022-12-07 11:34:31.725 [Thread-0] INFO  Route optimization was completed in 0,41 seconds.
+2022-12-07 11:34:31.739 [Thread-0] TRACE Method 'BatchAutorouterThread.thread_action()' was performed in 0,93 seconds.
+2022-12-07 11:34:31.740 [Thread-0] INFO  Saving '/home/vRAk/_src/c64/sid6581/esp32pcb/esp32pcb/freerouting.ses'...
