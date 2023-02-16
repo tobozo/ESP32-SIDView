@@ -41,39 +41,14 @@
   - https://github.com/tobozo/ESP32-Targz
   - https://github.com/tobozo/ESP32-Chimera-Core
   - https://github.com/tobozo/M5Stack-SD-Updater
+  - https://github.com/tzapu/WiFiManager
+  - https://github.com/tobozo/WiFiManagerTz
+  [optional]
+  - https://github.com/tobozo/ESP32-USB-Soft-Host
 
 
 \*/
 
-#include "config.h"
 
-SIDExplorer* SidViewer = nullptr;
+// empty file to satisfy Arduino IDE **and** Platformio/VSCode requirements
 
-void setup()
-{
-
-  M5.begin(true, true); // don't begin TFT and SD
-  tft.setRotation( 2 ); // portrait mode !
-
-  #ifdef SD_UPDATABLE
-    setupButtonsStyle(); // set styles first (default it 320x240 landscape)
-    setAssertTrigger( &myAssertStartUpdateFromButton ); // use my own buttons combination at boot
-    // checkMenuStickyPartition(); // copy self to SD Card as "/menu.bin" and OTA1 partition
-    checkSDUpdater( SID_FS, MENU_BIN, 1000 ); // load existing (not this sketch) menu.bin
-    M5.sd_begin();
-    delay(300);
-  #endif
-
-  Serial.printf("SID Player UI: %d*%d\n", M5.Lcd.width(), M5.Lcd.height() );
-  Serial.printf("Main Task Core   : %d (priority=%d)\n", M5.SD_CORE_ID, SID_MAINTASK_PRIORITY );
-  Serial.printf("Draw Task Core   : %d (priority=%d)\n", M5.SD_CORE_ID, SID_DRAWTASK_PRIORITY );
-
-  SidViewer = new SIDExplorer( &MD5Config );
-
-}
-
-
-void loop()
-{
-  vTaskDelete( NULL );
-}
