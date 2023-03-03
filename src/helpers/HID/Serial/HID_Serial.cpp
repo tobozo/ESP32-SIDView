@@ -20,6 +20,8 @@ void initSerial()
   }
   //Wire.begin( SDA, SCL ); // connect SerialShield
   serial_begun = true;
+  Serial.flush();
+
 }
 
 

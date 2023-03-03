@@ -1,4 +1,5 @@
 #include "HID_Common.hpp"
+#include "../../config.h"
 
 // extern void initXPad();
 // extern void HIDUSBInit();
@@ -16,6 +17,9 @@
 // extern void HIDAfterRead();
 // extern void afterTouchRead();
 // extern void afterSerialRead();
+
+
+uint32_t inactive_since = 0; // UI debouncer
 
 #if defined HID_XPAD
   #include "./Xpad/HID_XPad.hpp"
@@ -115,3 +119,14 @@ void afterHIDRead()
     afterSerialRead();
   #endif
 }
+
+
+
+HIDControlKey* getLastPressedKey()
+{
+  #if defined HID_USB
+    return getUSBLastPressedKey();
+  #endif
+  return nullptr;
+}
+

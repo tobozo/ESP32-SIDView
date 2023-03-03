@@ -8,21 +8,6 @@
   typedef void (*eventEmitter)(uint8_t mod, uint8_t key, keyToEvents evt );
 
 
-  class SidKeyboardParser : public KeyboardReportParser
-  {
-    public:
-      void setEventHandler( eventEmitter cb ) { sendEvent = cb; };
-      //void PrintKey(uint8_t mod, uint8_t key);
-      char lastkey[2] = {0,0};
-
-    protected:
-      void OnControlKeysChanged(uint8_t before, uint8_t after);
-      void OnKeyDown	(uint8_t mod, uint8_t key);
-      void OnKeyUp	(uint8_t mod, uint8_t key);
-      eventEmitter sendEvent = nullptr;
-  };
-
-
   void SidKeyboardParser::OnKeyUp(uint8_t mod, uint8_t key)
   {
     kEvt.mod = mod;
@@ -107,6 +92,15 @@
   */
 
 
+
+  SidKeyboardParser Prs;
+  //static int lastKeyReleased = -1;
+  //static int lastKeyPressed  = -1;
+  static int lastKeyDown     = -1;
+  static int lastKeyUp       = -1;
+  static bool usb_started = false;
+
+
   // USB detection callback
   static void onUSBDetect( uint8_t usbNum, void * dev )
   {
@@ -117,16 +111,17 @@
   }
 
 
-
-  SidKeyboardParser Prs;
-  //static int lastKeyReleased = -1;
-  //static int lastKeyPressed  = -1;
-  static int lastKeyDown     = -1;
-  static int lastKeyUp       = -1;
-  static bool usb_started = false;
-
-  void usbTicker() {
+  static void usbTicker()
+  {
     vTaskDelay(1);
+  }
+
+
+  // keyboard data parser to pass to the USB driver as a callback
+  static void onUSBReceice(uint8_t usbNum, uint8_t byte_depth, uint8_t* data, uint8_t data_len)
+  {
+    // parse USB data, may contain several keys
+    Prs.Parse( data_len, data );
   }
 
 
@@ -162,13 +157,6 @@
     return usb_started;
   }
 
-  // keyboard data parser to pass to the USB driver as a callback
-  void onUSBReceice(uint8_t usbNum, uint8_t byte_depth, uint8_t* data, uint8_t data_len)
-  {
-    // parse USB data, may contain several keys
-    Prs.Parse( data_len, data );
-  }
-
 
   void HIDBeforeRead()
   {
@@ -190,7 +178,7 @@
     // attach to USB event handler
     Prs.setEventHandler( HIDEventHandler );
     // init the USB Host
-    USH.setTaskPriority( SID_HID_TASK_PRIORITY );
+    USH.setTaskPriority( SID_HIDTASK_PRIORITY );
     USH.setTaskCore( SID_HID_CORE ); // inherit from config.h
     USH.init(
       (usb_pins_config_t){
@@ -211,12 +199,15 @@
 
   // last control key slot, memoizer and getter/setter
   HIDControlKey lastControlKey;
+
   HIDControlKey* setControlKey( HIDControls c, int k )
   {
     lastControlKey.set(c,k);
     return &lastControlKey;
   }
-  HIDControlKey* getControlKey( bool ctrlmode = false )
+
+
+  HIDControlKey* getControlKey( bool ctrlmode )
   {
     if( kEvt.processed ) return setControlKey(HID_NONE, 0);
     if( kEvt.evt == onKeyDown ) return setControlKey(HID_NONE, 0);
@@ -286,9 +277,7 @@
   }
 
 
-
-
-  HIDControlKey* getLastPressedKey()
+  HIDControlKey* getUSBLastPressedKey()
   {
     if( kEvt.processed ) return NULL;
     return getControlKey( false );

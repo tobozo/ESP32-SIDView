@@ -27,13 +27,18 @@ Bill of materials:
 - SID6581/[FPGASID](http://www.fpgasid.de/)/[TeenSID](https://github.com/kokotisp/6581-SID-teensy)/[SwinSID](https://www.c64-wiki.com/wiki/SwinSID)
 - [ESP32 <=> SID shield](https://github.com/hpwit/SID6581/blob/master/extras/Schematic_SIDESP32_Sheet_1_20200319160853.png)
 
-Software Requirements:
+Library Requirements:
 ----------------------
 - https://github.com/hpwit/SID6581
-- https://github.com/tobozo/ESP32-Chimera-Core
 - https://github.com/Lovyan03/LovyanGFX
-- https://github.com/tobozo/ESP32-targz
+- https://github.com/GOB52/gob_json
+- https://github.com/PaulStoffregen/Time
+- https://github.com/tzapu/WiFiManager
 - https://github.com/tobozo/M5Stack-SD-Updater
+- https://github.com/tobozo/ESP32-Chimera-Core
+- https://github.com/tobozo/ESP32-targz
+- https://github.com/tobozo/WiFiManagerTz
+- (optional/experimental) https://github.com/tobozo/ESP32-USB-Soft-Host
 
 Usage:
 ------

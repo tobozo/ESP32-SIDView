@@ -48,7 +48,9 @@
 #include "../helpers/WiFiManager/WiFiManagerHooks.hpp"
 #include "../Oscillo/OscilloView.hpp"
 #include "../UI/ScrollableItem.hpp"
-
+#if defined SD_UPDATABLE
+  #include "../helpers/SDUpdater/SDUpdaterHooks.hpp" // SD Updater lobby
+#endif
 
 namespace SIDView
 {
@@ -72,19 +74,16 @@ namespace SIDView
     nullptr           // callback function for progress when the init happens, overloaded later
   };
 
-  static TaskHandle_t renderVoicesTaskHandle = NULL;
+  //static TaskHandle_t renderVoicesTaskHandle = NULL;
   static TaskHandle_t renderUITaskHandle = NULL;
   static TaskHandle_t HIDTaskHandle = NULL;
 
   //static HIDControls LastHIDAction = -1;
   static unsigned long lastpush = millis();
-  static unsigned long lastEvent = millis();
   static int debounce = 200;
 
   static uint8_t maxVolume = 10; // value must be between 0 and 15
   static bool indexTaskRunning = false;
-
-  static uint32_t ramSize = 0; // populated at boot for statistics
 
   #if defined SID_DOWNLOAD_ARCHIVES
     static SID_Archive_Checker *SidArchiveChecker = nullptr;
@@ -127,15 +126,14 @@ namespace SIDView
         size_t maxitems = 1024; // Limiting folders to %d items due to lack of psram
       #endif
 
-      bool explorer_needs_redraw = false; // sprite ready to be pushed
-
-      unsigned long inactive_since = 0; // UI debouncer
       unsigned long inactive_delay = 5000;
       unsigned long sleep_delay    = 600000; // sleep after 600 seconds
 
       void processHID();
       void updatePagination();
       void animateView();
+
+      void dispatchBrowsing();
 
       void handleHIDDown();
       void handleHIDUp();
@@ -175,11 +173,9 @@ namespace SIDView
 
       #if defined ENABLE_HVSC_SEARCH
         void handleHIDSearch();
-        bool drawSearchPage( char* searchstr, bool search=false, size_t pagenum=0, size_t maxitems=8 );
+        bool handleSearchPage( char* searchstr, bool search=false, size_t pagenum=0, size_t maxitems=8 );
         // keywords indexing task
         static void buildSIDWordsIndexTask( void* param );
-        static bool keywordsTicker( const char* title, size_t totalitems );
-        static void keyWordsProgress( size_t current, size_t total, size_t words_count, size_t files_count, size_t folders_count  );
         void resetWordsCache();
       #endif
 

@@ -6,7 +6,6 @@
 
   #include "HID_USB_KbdParser.hpp"
 
-
   enum keyToEvents
   {
     onNone,
@@ -45,20 +44,12 @@
       eventEmitter sendEvent = nullptr;
   };
 
-  // USB detection callback
-  static void onUSBDetect( uint8_t usbNum, void * dev );
-  void usbTicker();
-  void HIDEventHandler( uint8_t mod, uint8_t key, keyToEvents evt );
-  // keyboard data parser to pass to the USB driver as a callback;
-  void onUSBReceice(uint8_t usbNum, uint8_t byte_depth, uint8_t* data, uint8_t data_len);
   void HIDBeforeRead();
   void HIDAfterRead();
   void HIDUSBInit();
   bool USBReady();
   HIDControls readUSBHIDKeyboarD();
-  // last control key slot, memoizer and getter/setter
-  HIDControlKey* setControlKey( HIDControls c, int k );
-  HIDControlKey* getControlKey( bool ctrlmode = false );
-  HIDControlKey* getLastPressedKey();
+  // last control key slot
+  HIDControlKey* getUSBLastPressedKey();
 
 #endif

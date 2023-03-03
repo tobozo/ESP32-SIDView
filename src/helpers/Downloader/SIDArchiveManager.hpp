@@ -40,57 +40,42 @@
 
   #include "web.h"
 
-
   class SID_Archive
   {
-
     public:
-
       char *sidRealPath;
       char *tgzFileName;
-
       ~SID_Archive();
       SID_Archive( MD5FileConfig *c);
-
       bool check();
       bool expand();
       bool exists();
       bool isExpanded();
       bool hasCache();
       #ifdef _SID_HVSC_DOWNLOADER_H_
-      bool download();
+        bool download();
       #endif
-
     private:
-
       MD5FileConfig *cfg;
       char          *cachePath;
-
       void setExpanded( bool toggle = true );
-
   };
-
 
 
   class SID_Archive_Checker
   {
-
     public:
-
       SID_Archive_Checker( MD5FileConfig *c );
-
       void checkArchive();
       bool checkGzFile( bool force = false );
       bool checkGzExpand( bool force = false );
       bool checkMd5File( bool force = false );
       #ifdef _SID_HVSC_DOWNLOADER_H_
-      bool wifi_occured = false;
+        bool wifi_occured = false;
       #endif
-
     private:
       MD5FileConfig *cfg;
       SID_Archive *archive = nullptr;
-
   };
 
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../../config.h"
-//#include <Wire.h>
 
 enum HIDControls
 {
@@ -54,5 +53,6 @@ HIDControls readHID();
 void beforeHIDRead();
 void afterHIDRead();
 
+HIDControlKey* getLastPressedKey();
 
-
+extern uint32_t inactive_since;// = 0; // UI debouncer

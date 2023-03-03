@@ -31,10 +31,9 @@
 
 #include "SIDArchiveManager.hpp"
 
-
 #if defined SID_DOWNLOAD_ARCHIVES
 
-  #include "../helpers/UI_Utils.hpp"
+  #include "../../UI/UI_Utils.hpp"
 
   SID_Archive::~SID_Archive()
   {
@@ -60,7 +59,7 @@
     snprintf( sidRealPath, 256, "%s/.%s.expanded", cfg->sidfolder, cfg->archive->path );
     snprintf( cachePath,   256, "/tmp/%s.sidcache", cfg->archive->name );
     #if defined _SID_HVSC_FILE_INDEXER_H_ && defined SID_DOWNLOAD_ARCHIVES
-    PrintProgressBar = &UIProgressBarPrinter;
+    PrintProgressBar = &UI_Utils::UIProgressBarPrinter;
     #endif
   };
 
@@ -79,7 +78,7 @@
 
   bool SID_Archive::expand()
   {
-    UIPrintTitle( cfg->archive->name, "  Expanding Tgz  " );
+    UI_Utils::UIPrintTitle( cfg->archive->name, "  Expanding Tgz  " );
     setExpanded( false ); // mark the archive as not expanded
 
     TarGzUnpacker *TARGZUnpacker = new TarGzUnpacker();
@@ -161,8 +160,8 @@
 
     mkdirp( cfg->fs, tgzFileName ); // from ESP32-Targz: create traversing directories if none exist
 
-    UIPrintTitle( cfg->archive->name, "   Downloading   " );
-    PrintProgressBar = &UIProgressBarPrinter;
+    UI_Utils::UIPrintTitle( cfg->archive->name, "   Downloading   " );
+    PrintProgressBar = &UI_Utils::UIProgressBarPrinter;
     if( !wget( HVSC_TGZ_URL, *cfg->fs, tgzFileName ) ) {
       Serial.printf("Failed to download %s :-(\n", tgzFileName);
       return false;

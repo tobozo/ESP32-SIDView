@@ -33,9 +33,9 @@
 
 #include "../config.h"
 #include "../assets/assets.h"
-#include "../helpers/types.hpp"
 #include "./ScrollableItem.hpp"
 #include "../Oscillo/OscilloView.hpp"
+#include "../helpers/HID/HID_Common.hpp"
 
 #define takeSidMuxSemaphore() if( SIDView::mux ) { xSemaphoreTake(SIDView::mux, portMAX_DELAY); /*log_v("Took Semaphore");*/ }
 #define giveSidMuxSemaphore() if( SIDView::mux ) { xSemaphoreGive(SIDView::mux); /*log_v("Gave Semaphore");*/ }
@@ -81,9 +81,12 @@ namespace UI_Utils
 
   extern uint8_t folderDepth;
   extern uint16_t itemsPerPage;
-  extern const char* loopmodeicon;
+  extern uint8_t* loopmodeicon;
   extern size_t loopmodeicon_len;
   extern UI_mode_t UI_mode;
+  //extern uint32_t inactive_since;// = 0; // UI debouncer
+  extern bool explorer_needs_redraw;// = false; // sprite ready to be pushed
+  extern bool songheader_needs_redraw;
 
   void init();
   void sleep();
@@ -113,6 +116,49 @@ namespace UI_Utils
   void drawVolumeIcon( int16_t x, int16_t y, uint8_t volume );
   void drawC64logo( int32_t posx, int32_t posy, float output_size=100.0, uint32_t fgcolor=C64_DARKBLUE, uint32_t bgcolor=C64_LIGHTBLUE );
 
+  #if defined HID_TOUCH
+    struct TouchButtonAction_t
+    {
+      TouchButton *button;
+      const char* label;
+      uint8_t font_size;
+      HIDControls action;
+      int16_t x,y,w,h;
+      TouchButton::drawCb cb;
+    };
+
+    struct TouchButtonWrapper_t
+    {
+      bool iconRendered = false;
+      LGFX_Sprite *buttonsSprite;
+      int16_t spritePosX, spritePosY;
+      void handlePressed( TouchButton *btn, bool pressed, int16_t x, int16_t y);
+      void handleJustPressed( TouchButton *btn, const char* label );
+      bool justReleased( TouchButton *btn, bool pressed, const char* label );
+      void draw();
+    };
+
+    static TouchButtonAction_t UIBtns[8]; // will be inited from HID_Touch.cpp
+    extern TouchButtonWrapper_t tbWrapper;
+    extern int touchSpriteOffset;
+
+    void registerButtonAction( LGFX_Sprite *sprite, TouchButtonAction_t *btna );
+    void setupUIBtns( LGFX_Sprite *sprite, int x, int y, int w, int h, int xoffset, int yoffset );
+
+    void drawTouchButtons();
+    void releaseTouchButtons();
+
+    void shapeTriangleUpCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label );
+    void shapeTriangleDownCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label );
+    void shapeTrianglePrevCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label );
+    void shapeTriangleNextCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label );
+    void shapeTriangleRightCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label );
+    void shapeLoopToggleCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label );
+    void shapePlusCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label );
+    void shapeMinusCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label );
+  #endif
+
+
   #if defined SID_DOWNLOAD_ARCHIVES
     // archive manager
     void UIPrintTitle( const char* title, const char* message = nullptr );
@@ -121,6 +167,10 @@ namespace UI_Utils
 
   #if defined ENABLE_HVSC_SEARCH
     // search
+    void initSearchUI();
+    void deinitSearchUI();
+    bool keywordsTicker( const char* title, size_t totalitems );
+    void keyWordsProgress( size_t current, size_t total, size_t words_count, size_t files_count, size_t folders_count  );
     void UIDrawProgressBar( float progress, float total=100.0, uint16_t xpos = 64, uint16_t ypos = 64, const char *text="Progress:" );
   #endif
 

@@ -151,10 +151,13 @@ namespace SIDView
 
   bool SongCacheManager::insert( SID_Meta_t *song, bool append )
   {
+    snprintf( song->filename, 255, "%s", md5path ); // don't use the full path
+    size_t objsize = sizeof( SID_Meta_t );// + song->subsongs*sizeof(uint32_t);
     //fs::File cacheFile;
     if( append ) {
       //songCacheFile = fs->open( cachepath, "a+" );
       // TODO: check that cacheFile.position() is a multiple of SID_Meta_t
+      log_d("Appending at offset #%d (objsize=%d)", songCacheFile.position(), objsize );
     } else {
       songCacheFile = fs->open( cachepath, "w" ); // truncate
     }
@@ -162,8 +165,6 @@ namespace SIDView
       log_e("Can't insert entry");
       return false;
     }
-    snprintf( song->filename, 255, "%s", md5path ); // don't use the full path
-    size_t objsize = sizeof( SID_Meta_t );// + song->subsongs*sizeof(uint32_t);
     size_t written_bytes = songCacheFile.write( (uint8_t*)song, objsize );
     //songCacheFile.close();
     return written_bytes == objsize;
@@ -345,15 +346,14 @@ namespace SIDView
 
   int SongCacheManager::addSong( const char * path, bool checkdupes )
   {
-    SID_Meta_t *song = (SID_Meta_t*)sid_calloc(1, sizeof(SID_Meta_t) );
-    song->durations = nullptr;
+    SID_Meta_t song;
 
-    setCleanFileName( song->filename, 255, "%s", path );
+    setCleanFileName( song.filename, 255, "%s", path );
 
     int ret = -1;
 
-    if( sidPlayer->getInfoFromSIDFile( path, song ) ) {
-      if( add( path, song, checkdupes ) ) {
+    if( sidPlayer->getInfoFromSIDFile( path, &song ) ) {
+      if( add( path, &song, checkdupes ) ) {
         log_d("[%d] Cached %s", ESP.getFreeHeap(), path);
         ret = 1;
       } else {
@@ -361,13 +361,10 @@ namespace SIDView
         ret = 0;
       }
     } else {
-      //log_e("Ignoring unhandled file %s", path);
+      log_d("[%d] Ignoring unhandled file %s", ESP.getFreeHeap(), path);
       ret = 0;
     }
-    //if( song != nullptr ) {
-    if( song->durations != nullptr ) free( song->durations );
-    free( song );
-    //}
+
     return ret;
   }
 
@@ -1169,13 +1166,15 @@ namespace SIDView
       }
       String itemName = sortedDirCache->readStringUntil('\n');
       if( itemName == "" ) {
-        // bad dircache file
+        // bad dircache file?
         goto _end;
       }
       if( type == F_SID_FILE || type == F_PLAYLIST ) {
         if( addSong( itemName.c_str(), saved==0 ) > 0 ) {
           cache_built = true;
           saved++;
+        } else {
+          log_e("Failed to add song %s at index %d", itemName.c_str(), saved );
         }
         tickerCb("Cache", saved );
       }
@@ -1183,6 +1182,8 @@ namespace SIDView
     }
 
     _end:
+
+    log_d("SidCache size: %d", saved );
 
     return cache_built;
 
@@ -1209,6 +1210,7 @@ namespace SIDView
   // for playlist handling
   bool SongCacheManager::getInfoFromItem( const char* _cachepath, size_t itemNum )
   {
+    if( itemNum>0 && itemNum>=CacheItemSize ) return false;
     if( cache_type == CACHE_DEEPSID ) {
       return getInfoFromDeepsidItem( _cachepath, itemNum );
     } else {
@@ -1243,7 +1245,7 @@ namespace SIDView
     bool ret = false;
     if( item.type == Deepsid::TYPE_FILE ) {
       //if( itemNum == 0 ) CacheItemSize = item.dir->size();
-      CacheItemNum  = itemNum;
+      CacheItemNum = itemNum;
       ret = item.getSIDMeta( item, currenttrack );
     }
     //delete dir;
@@ -1286,13 +1288,17 @@ namespace SIDView
       //SID_FS.remove( cachepath );
       return false;
     }
-    log_v("Cache file %s (%d bytes) estimated to %d entries (average %d bytes each)", cachepath, filesize, filesize/bufsize, bufsize );
+    log_d("Cache file %s (%d bytes) estimated to %d entries (average %d bytes each)", cachepath, filesize, filesize/bufsize, bufsize );
     char *SID_Meta_buf =  new char[bufsize+1];
     size_t itemCount = 0;
     bool ret = false;
 
     if( itemNum > 0 ) {
+      log_d("Skipping to offset %d (#%d)", itemNum*bufsize, itemNum );
       cacheFile.seek( itemNum*bufsize );
+      itemCount = itemNum;
+    } else {
+      log_d("Starting at offset %d (#%d)", cacheFile.position(), itemNum );
     }
 
     while( cacheFile.available() ) {
@@ -1300,9 +1306,10 @@ namespace SIDView
       itemCount++;
       // seek cache item
       if( itemCount-1 != itemNum ) {
+        log_d("Skipping item index #%d (looking for index #%d)", itemCount-1, itemNum );
         continue;
       }
-      log_v("Found the item");
+      log_d("Found the item");
 
       if( currenttrack != nullptr ) {
         if( currenttrack->durations != nullptr ) {
@@ -1339,8 +1346,9 @@ namespace SIDView
     delete SID_Meta_buf;
     cacheFile.close();
     if( itemNum == 0 ) CacheItemSize = itemCount;
-    CacheItemNum  = itemNum;
-    log_v("Loaded %d subsongs (cache size: %d)", currenttrack->subsongs, CacheItemSize );
+    CacheItemNum = itemNum;
+    if( !ret ) log_w("[CACHE MISS] (cache size: %d, id %d)", CacheItemSize, itemNum );
+    songdebug( currenttrack );
     //sidPlayer->setSongstructCachePath( SID_FS, cachepath );
     return ret;
   }

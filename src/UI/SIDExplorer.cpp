@@ -33,9 +33,6 @@
 
 #include "./UI_Utils.hpp"
 #include "../helpers/intro_sound.hpp"
-#include "../helpers/led_vu_meter.hpp"
-
-
 
 namespace SIDView
 {
@@ -43,6 +40,7 @@ namespace SIDView
   using namespace UI_Utils;
 
   SIDTunesPlayer *sidPlayer = nullptr;
+  uint32_t ramSize = 0; // populated at boot for statistics
 
   const char* rebuildingPage[] =
   {
@@ -64,15 +62,16 @@ namespace SIDView
 
   SIDExplorer::SIDExplorer( MD5FileConfig *_cfg ) : cfg(_cfg)
   {
-
-    #ifdef SD_UPDATABLE
-      runSDUpdaterMenu();
-    #endif
+    Explorer = this;
 
     sidPlayer = new SIDTunesPlayer( cfg->fs );
 
     Serial.printf("SID Player UI: %d*%d\n", M5.Lcd.width(), M5.Lcd.height() );
     UI_Utils::init(); // init display, sprites, dimensions, colors, calculate items per page
+
+    #ifdef SD_UPDATABLE
+      SDUpdaterNS::runSDUpdaterMenu();
+    #endif
 
     this->setup(); // init MOS cpu emulator and SID player
 
@@ -139,7 +138,7 @@ namespace SIDView
     if( ! timeout.whileMs( []() -> bool { return !HIDReady(); }, timeout_ms ) ) {
       log_e("HID was not ready after %d ms, no controls :-(", timeout_ms );
     }
-    xTaskCreatePinnedToCore( SIDExplorer::mainTask, "sidExplorer", 16384, this, sidPlayer->SID_AUDIO_PRIORITY-1, &renderUITaskHandle, SID_MAINTASK_CORE );
+    xTaskCreatePinnedToCore( SIDExplorer::mainTask, "sidExplorer", 16384, this, 16/*sidPlayer->SID_PLAYER_PRIORITY+1*/, &renderUITaskHandle, SID_MAINTASK_CORE );
   }
 
 
@@ -148,10 +147,10 @@ namespace SIDView
     log_i("Init sidplayer");
     sidPlayer->sid.setInvertedPins( true ); // use this if pins D{0-7} to 75HC595 are in reverse order
     sidPlayer->setMD5Parser( cfg );
-    sidPlayer->sid.setTaskCore( M5.SD_CORE_ID );
+    sidPlayer->sid.setTaskCore( M5.SD_CORE_ID ); // queue core
     sidPlayer->setEventCallback( eventCallback );
     if( sidPlayer->begin( SID_CLOCK, SID_DATA, SID_LATCH, SID_CLOCK_PIN ) ) {
-      soundIntro( &sidPlayer->sid );//
+      //soundIntro( &sidPlayer->sid );//
       sidPlayer->setMaxVolume( maxVolume );
       log_i("MOS CPU Core + SID Player Started");
 
@@ -165,15 +164,27 @@ namespace SIDView
 
   void SIDExplorer::loop()
   {
+    static UI_mode_t Last_UI_mode = UI_mode_t::none;
+
+    processHID();
+
+    if( UI_mode != Last_UI_mode ) {
+      log_d("UI Mode Change, was: %d, is: %d", Last_UI_mode, UI_mode );
+      explorer_needs_redraw = true;
+      Last_UI_mode = UI_mode;
+    }
+
     switch (UI_mode) {
       default:
       case UI_mode_t::none:
-        //updatePagination(); // handle pagination
-        //drawPagedList();    // draw page
         explorer_needs_redraw = true;
         UI_mode = UI_mode_t::paged_listing;
       break;
       case UI_mode_t::paged_listing:
+
+        listScrollableText->doscroll(); // animate text overflow if any
+        led_meter.off();
+
         if( explorer_needs_redraw ) {
           updatePagination(); // handle pagination
           drawPagedList();    // draw page
@@ -181,14 +192,13 @@ namespace SIDView
         } else {
           handleAutoPlay();
         }
-        vTaskDelay(1);
+        vTaskDelay(10); // throttle paged listing
       break;
       case UI_mode_t::animated_views:
         drawWaveforms();
       break;
     }
-    display->display();
-    processHID();
+
     animateView(); // will set the UI_Mode
   }
 
@@ -196,11 +206,16 @@ namespace SIDView
 
   void SIDExplorer::mainTask( void *param )
   {
-    vTaskDelay(1); // let the main loop() task self-delete (frees ~4Kb)
-    log_d("Running SIDExplorer from core #%d", xPortGetCoreID() );
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = 1; // 1ms=variable fps, 15ms=60fps, 20ms=50fps, 25ms=40fps, ...
+    xLastWakeTime = xTaskGetTickCount();
+    vTaskDelay(10); // let the main loop() task self-delete (frees ~4Kb)
+    log_d("Running SIDExplorer from core #%d with priority %d", xPortGetCoreID(), uxTaskPriorityGet(NULL) );
     SIDExplorer *Explorer = (SIDExplorer*) param;
+
     for(;;) {
       Explorer->loop();
+      vTaskDelayUntil( &xLastWakeTime, xFrequency ); // idle until next cycle
     }
     vTaskDelete( NULL );
   }
@@ -214,16 +229,16 @@ namespace SIDView
     SIDExplorer *Explorer = (SIDExplorer*) param;
     initHID(); // start HID
     readHID(); // clear/purge HID queue
-    log_d("Running HID Task from core #%d", xPortGetCoreID()  );
-    Explorer->inactive_since = millis(); // reset activity timer
+    log_d("Running HID Task from core #%d with priority %d", xPortGetCoreID(), uxTaskPriorityGet(NULL) );
+    inactive_since = millis(); // reset activity timer
 
     HIDControls HIDAction     = HID_NONE;
     HIDControls LastHIDAction = HID_NONE;
 
-    while(1) {
+    for(;;) {
       HIDAction = readHID();
       if( HIDAction != HID_NONE && ( LastHIDAction != HIDAction || lastpush + debounce < millis() ) ) {
-        Explorer->inactive_since = millis(); // reset activity timer
+        inactive_since = millis(); // reset activity timer
         LastHIDAction = HIDAction;           // memoize last action
         Explorer->HIDAction = HIDAction;     // transmit action to main thread
         while( Explorer->HIDAction != HID_NONE ) vTaskDelay(10); // wait until action is processed
@@ -250,17 +265,19 @@ namespace SIDView
   {
     sidPlayer->setLoopMode( SID_LOOP_OFF );
     //render = false;
-    vTaskDelay(1);
-    if( SongCache->CacheItemNum > 0 && SongCache->getInfoFromItem( Nav->path, SongCache->CacheItemNum-1 ) ) {
+    //vTaskDelay(1);
+    if( ( SongCache->CacheItemNum== 0 && SongCache->getInfoFromItem( Nav->path, SongCache->CacheItemSize-1 ) )
+     || ( SongCache->CacheItemNum > 0 && SongCache->getInfoFromItem( Nav->path, SongCache->CacheItemNum-1 ) ) ) {
       log_d("Playing track #%d from cached playlist file %s (%d elements)", SongCache->CacheItemNum, Nav->path, SongCache->CacheItemSize );
       sidPlayer->playSID( SongCache->currenttrack );
       inactive_delay = 500;
       lastpush = millis();
       explorer_needs_redraw = true;
+      songheader_needs_redraw = true;
     } else {
       log_e("Prev cache item (#%d) is not playable", SongCache->CacheItemNum-1);
     }
-    vTaskDelay(1);
+    //vTaskDelay(1);
   }
 
 
@@ -268,17 +285,20 @@ namespace SIDView
   {
     sidPlayer->setLoopMode( SID_LOOP_OFF );
     //render = false;
-    vTaskDelay(1);
-    if( SongCache->getInfoFromItem( Nav->path, SongCache->CacheItemNum+1 ) ) {
+    //vTaskDelay(1);
+    if( SongCache->getInfoFromItem( Nav->path, SongCache->CacheItemNum+1 ) || SongCache->getInfoFromItem( Nav->path, SongCache->CacheItemNum+1 ) ) {
       log_d("Playing track #%d from cached playlist file %s (%d elements)", SongCache->CacheItemNum, Nav->path, SongCache->CacheItemSize );
       sidPlayer->playSID( SongCache->currenttrack );
       inactive_delay = 500;
       lastpush = millis();
       explorer_needs_redraw = true;
+      songheader_needs_redraw = true;
     } else {
       log_e("Next cache item (#%d) is not playable", SongCache->CacheItemNum+1);
+      if( SongCache->CacheItemNum+1 < SongCache->CacheItemSize )
+      songdebug( SongCache->currenttrack );
     }
-    vTaskDelay(1);
+    //vTaskDelay(1);
   }
 
 
@@ -287,7 +307,7 @@ namespace SIDView
     Nav->next();
     explorer_needs_redraw = true;
     inactive_delay = 5000;
-    delay(10);
+    //delay(10);
   }
 
 
@@ -296,13 +316,14 @@ namespace SIDView
     Nav->prev();
     explorer_needs_redraw = true;
     inactive_delay = 5000;
-    delay(10);
+    //delay(10);
   }
 
 
   void SIDExplorer::handleHIDRight()
   {
     if( sidPlayer->isPlaying() ) {
+      sidPlayer->stop();
       switch( currentBrowsingType ) {
         case F_SID_FILE: sidPlayer->playPrevSongInSid(); break;
         case F_PLAYLIST: prevInPlaylist(); break;
@@ -316,13 +337,13 @@ namespace SIDView
   void SIDExplorer::handleHIDLeft()
   {
     if( sidPlayer->isPlaying() ) {
+      sidPlayer->stop();
       switch( currentBrowsingType ) {
         case F_SID_FILE: sidPlayer->playNextSongInSid(); break;
         case F_PLAYLIST:
-          sidPlayer->stop();
           nextSIDEvent = SID_START_PLAY; // dispatch to handleAutoPlay
           //stoprender = true;
-          vTaskDelay(10);
+          //vTaskDelay(10);
         break;
         default: /* Should not happen but compiler complains otherwise */ break;
       }
@@ -353,6 +374,7 @@ namespace SIDView
       }
 
       sidPlayer->playSID( track );
+      songheader_needs_redraw = true;
 
       timeout_runner_t timeout;
 
@@ -369,6 +391,7 @@ namespace SIDView
         sidPlayer->playSID( track );
         inactive_delay = 500;
         inactive_since = millis();
+        songheader_needs_redraw = true;
       }
     }
   }
@@ -459,32 +482,42 @@ namespace SIDView
   }
 
 
+  void SIDExplorer::dispatchBrowsing()
+  {
+    switch( currentBrowsingType )
+    {
+      case F_SID_FILE: handleSIDFile();  break;
+      case F_PLAYLIST: handlePlaylist(); break;
+      case F_TOOL_CB:  handleTool();     break;
+      case F_DEEPSID_FOLDER:
+      case F_PARENT_FOLDER:
+      case F_SUBFOLDER:
+      case F_SUBFOLDER_NOCACHE:
+        handleFolder();
+        break;
+      case F_SYMLINK:
+      case F_UNSUPPORTED_FILE:
+      default:
+        break;
+    }
+  }
+
+
   void SIDExplorer::handleHIDPlayStop()
   {
-    if( !sidPlayer->isPlaying() /*!adsrenabled*/ ) {
-
-      switch( currentBrowsingType )
-      {
-        case F_SID_FILE: handleSIDFile();  break;
-        case F_PLAYLIST: handlePlaylist(); break;
-        case F_TOOL_CB:  handleTool();     break;
-        case F_DEEPSID_FOLDER:
-        case F_PARENT_FOLDER:
-        case F_SUBFOLDER:
-        case F_SUBFOLDER_NOCACHE:
-          handleFolder();
-          break;
-        case F_SYMLINK:
-        case F_UNSUPPORTED_FILE:
-        default:
-          break;
-      }
+    if( !sidPlayer->isPlaying() ) {
+      dispatchBrowsing();
     } else {
-      log_i("Stopping sidPlayer");
       sidPlayer->stop();
-      inactive_delay = 5000;
-      vTaskDelay(100);
+      /*
+      if( UI_mode == UI_mode_t::animated_views || strcmp( sidPlayer->getFilename(), Nav->path ) == 0 ) {
+        log_i("Stopping sidPlayer");
+        sidPlayer->stop();
+      } else {
+        dispatchBrowsing();
+      }*/
     }
+    inactive_delay = 5000;
     explorer_needs_redraw = true;
   }
 
@@ -497,9 +530,8 @@ namespace SIDView
         case SID_LOOP_ON:     setUIPlayerMode( SID_LOOP_RANDOM ); break;
         case SID_LOOP_RANDOM: setUIPlayerMode( SID_LOOP_OFF );    break;
       };
-      PlayerPrefs.setLoopMode( songHeader.playerloopmode ); // save to NVS
-      sidPlayer->setLoopMode( songHeader.playerloopmode );
-      inactive_delay = 500;
+      inactive_delay = 5000;
+      songheader_needs_redraw = true;
     } else {
       // only when the ".." folder is being selected
       if( currentBrowsingType == F_PARENT_FOLDER ) {
@@ -528,6 +560,7 @@ namespace SIDView
       sidPlayer->setMaxVolume( maxVolume ); //value between 0 and 15
       log_d("New volume level: %d", maxVolume );
       PlayerPrefs.setVolume( maxVolume );
+      songheader_needs_redraw = true;
     }
   }
 
@@ -539,6 +572,7 @@ namespace SIDView
       sidPlayer->setMaxVolume( maxVolume ); //value between 0 and 15
       log_d("New volume level: %d", maxVolume );
       PlayerPrefs.setVolume( maxVolume );
+      songheader_needs_redraw = true;
     }
   }
 
@@ -547,7 +581,8 @@ namespace SIDView
   {
     if( HIDAction!=HID_NONE /*&& ( LastHIDAction != HIDAction || lastpush + debounce < millis() )*/ ) {
 
-      UI_mode = UI_mode_t::paged_listing;
+      //UI_mode = UI_mode_t::paged_listing;
+      //explorer_needs_redraw = true;
 
       log_d("HID Action #%d = %s", HIDAction, HIDControlStr[HIDAction] );
 
@@ -570,7 +605,7 @@ namespace SIDView
         #endif
         default: log_w("Unhandled button combination: %X", HIDAction ); inactive_delay = 5000; break; // simultaneous buttons push ?
       }
-      vTaskDelay(1);
+      vTaskDelay(10);
       lastpush = millis();
       //LastHIDAction = HIDAction;
       HIDAction = HID_NONE; // reset read value, readiness signal for next HID poll
@@ -581,18 +616,21 @@ namespace SIDView
   void SIDExplorer::setUIPlayerMode( loopmode mode )
   {
     switch (mode) {
-      case SID_LOOP_OFF:    loopmodeicon = (const char*)single_jpg;     loopmodeicon_len = single_jpg_len;     break;
-      case SID_LOOP_ON:     loopmodeicon = (const char*)iconloop_jpg;   loopmodeicon_len = iconloop_jpg_len;   break;
-      case SID_LOOP_RANDOM: loopmodeicon = (const char*)iconrandom_jpg; loopmodeicon_len = iconrandom_jpg_len; break;
+      case SID_LOOP_OFF:    loopmodeicon = (uint8_t*)single_jpg;     loopmodeicon_len = single_jpg_len;     break;
+      case SID_LOOP_ON:     loopmodeicon = (uint8_t*)iconloop_jpg;   loopmodeicon_len = iconloop_jpg_len;   break;
+      case SID_LOOP_RANDOM: loopmodeicon = (uint8_t*)iconrandom_jpg; loopmodeicon_len = iconrandom_jpg_len; break;
     };
+    log_d("Player mode change, was: %d, is: %d", songHeader.playerloopmode, mode );
     songHeader.playerloopmode = mode;
+    PlayerPrefs.setLoopMode( songHeader.playerloopmode ); // save to NVS
+    songheader_needs_redraw = true;
   }
 
 
   void SIDExplorer::eventCallback( SIDTunesPlayer* player, sidEvent event )
   {
     lastSIDEvent = event;
-    lastEvent = millis();
+    inactive_since = millis();
 
     switch( event ) {
       case SID_END_FILE: log_n( "[%d] SID_END_FILE: %s", ESP.getFreeHeap(), sidPlayer->getFilename() );
@@ -603,30 +641,28 @@ namespace SIDView
             } else {
               nextSIDEvent = SID_END_PLAY;
               log_d("End of playlist (playlist size:%d, position: %d", SongCache->CacheItemSize, SongCache->CacheItemNum );
-              UI_mode = UI_mode_t::paged_listing;
             }
           break;
-          case F_SID_FILE: UI_mode = UI_mode_t::animated_views; break;
-          default: UI_mode = UI_mode_t::paged_listing; break;
+          case F_SID_FILE: break;
+          default: break;
         }
       break;
       case SID_NEW_TRACK:
-        //render = true;
         log_d( "[%d] SID_NEW_TRACK: %s (%02d:%02d) %d/%d subsongs",
           ESP.getFreeHeap(),
           sidPlayer->getName(),
           sidPlayer->getCurrentTrackDuration()/60000, (sidPlayer->getCurrentTrackDuration()/1000)%60,
-          sidPlayer->currentsong+1, sidPlayer->subsongs
+          sidPlayer->currenttune->currentsong+1, sidPlayer->currenttune->trackinfo->subsongs
         );
-        //songHeader.setSong();
+        songheader_needs_redraw = true;
       break;
-      case SID_NEW_FILE: inactive_since = millis(); log_d( "[%d] SID_NEW_FILE: %s (%d songs)", ESP.getFreeHeap(), sidPlayer->getFilename(), sidPlayer->getSongsCount() ); break;
       case SID_START_PLAY:  log_d( "[%d] SID_START_PLAY: %s",  ESP.getFreeHeap(), sidPlayer->getFilename() ); break;
-      case SID_END_PLAY:    UI_mode = UI_mode_t::paged_listing; log_d( "[%d] SID_END_PLAY: %s",    ESP.getFreeHeap(), sidPlayer->getFilename() ); break;
-      case SID_PAUSE_PLAY:  UI_mode = UI_mode_t::paged_listing; log_d( "[%d] SID_PAUSE_PLAY: %s",  ESP.getFreeHeap(), sidPlayer->getFilename() ); break;
-      case SID_RESUME_PLAY: log_d( "[%d] SID_RESUME_PLAY: %s", ESP.getFreeHeap(), sidPlayer->getFilename() );  break;
+      case SID_RESUME_PLAY: log_d( "[%d] SID_RESUME_PLAY: %s", ESP.getFreeHeap(), sidPlayer->getFilename() ); break;
+      case SID_NEW_FILE:    log_d( "[%d] SID_NEW_FILE: %s (%d songs)", ESP.getFreeHeap(), sidPlayer->getFilename(), sidPlayer->getSongsCount() ); break;
+      case SID_END_PLAY:    log_d( "[%d] SID_END_PLAY: %s",    ESP.getFreeHeap(), sidPlayer->getFilename() ); break;
+      case SID_PAUSE_PLAY:  log_d( "[%d] SID_PAUSE_PLAY: %s",  ESP.getFreeHeap(), sidPlayer->getFilename() ); break;
       case SID_END_TRACK:   log_d( "[%d] SID_END_TRACK",       ESP.getFreeHeap()); break;
-      case SID_STOP_TRACK:  UI_mode = UI_mode_t::paged_listing; log_d( "[%d] SID_STOP_TRACK",      ESP.getFreeHeap()); break;
+      case SID_STOP_TRACK:  log_d( "[%d] SID_STOP_TRACK",      ESP.getFreeHeap()); break;
     }
   }
 
@@ -644,9 +680,6 @@ namespace SIDView
   void SIDExplorer::updatePagination()
   {
     if( Nav->page_changed() ) {
-      // infoWindow( " READING $ " );
-      // page change, load paginated cache !
-      log_d("#### will getPaginatedFolder"); // such confidence :-)
       getPaginatedFolder( Nav->start/*, Nav->itemsPerPage*/  );
       // simulate a push-release to prevent multiple action detection
       lastpush = millis();
@@ -738,28 +771,34 @@ namespace SIDView
 
   void SIDExplorer::animateView()
   {
-    if( millis() - inactive_delay < inactive_since ) { // still debouncing from last action
-      listScrollableText->doscroll(); // animate text overflow if any
+
+    // flags [isplaying] [isUIdebouncing]
+
+
+
+    if( millis() - inactive_delay < inactive_since ) { // UI still debouncing from last action
       UI_mode = UI_mode_t::paged_listing;
-      led_meter.off();
+      //listScrollableText->doscroll(); // animate text overflow if any
+      //led_meter.off();
+      //explorer_needs_redraw = true;
     } else {
       if( sidPlayer->isPlaying() ) {
         if( UI_mode!=UI_mode_t::animated_views) {
-          // ADSR not running, draw UI and run task
-          //log_d("[%d] launching renverVoices task (inactive_delay=%d, inactive_since=%d)", ESP.getFreeHeap(), inactive_delay, inactive_since );
           drawHeader();
-          songHeader.setSong();
+          //songHeader.setSong();
+          songheader_needs_redraw = true;
           UI_mode = UI_mode_t::animated_views;
         }
         songHeader.loop();
       } else {
         UI_mode = UI_mode_t::paged_listing;
-        listScrollableText->doscroll(); // animate text overflow if any
+        //listScrollableText->doscroll(); // animate text overflow if any
+        //led_meter.off();
+        //explorer_needs_redraw = true;
         if( millis() > sleep_delay && millis() - sleep_delay > inactive_since ) {
           // go to sleep
           UI_Utils::sleep();
         }
-        led_meter.off();
       }
     }
   }
@@ -875,7 +914,7 @@ namespace SIDView
 
   #if defined ENABLE_HVSC_SEARCH
 
-    bool SIDExplorer::drawSearchPage( char* searchstr, bool search, size_t itemselected, size_t maxitems )
+    bool SIDExplorer::handleSearchPage( char* searchstr, bool search, size_t itemselected, size_t maxitems )
     {
 
       bool ret = false;
@@ -988,7 +1027,7 @@ namespace SIDView
       // memoize current position/folder
       Nav->freeze();
 
-      scrollableText->scroll = false;
+      listScrollableText->scroll = false;
       explorer_needs_redraw = true;
       //stoprender = true;
       //adsrenabled = false;
@@ -1051,7 +1090,7 @@ namespace SIDView
                     searchstr[len+1] = '\0';
                     len++;
                     Nav->pos = 0;
-                    itemsfound = drawSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
+                    itemsfound = handleSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
                   }
                 break;
               }
@@ -1061,7 +1100,7 @@ namespace SIDView
                 len--;
                 searchstr[len] = '\0';
                 Nav->pos = 0;
-                itemsfound = drawSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
+                itemsfound = handleSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
               }
             break;
             case HID_ACTION5: // ESCAPE
@@ -1073,7 +1112,7 @@ namespace SIDView
               Nav->next();
               //if( Nav->pos < Nav->size()-1 ) Nav->pos++;
               //else Nav->pos = 0;
-              //itemsfound = drawSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
+              //itemsfound = handleSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
 
               //drawPagedList();
 
@@ -1082,7 +1121,7 @@ namespace SIDView
               Nav->prev();
               //if( Nav->pos > 0 ) Nav->pos--;
               //else Nav->pos = Nav->size()-1;
-              //itemsfound = drawSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
+              //itemsfound = handleSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
 
               //drawPagedList();
 
@@ -1115,7 +1154,7 @@ namespace SIDView
             snprintf( searchstr, 255, "%s", blah.c_str() );
             len = blah.length();
             searchstr[len] = '\0';
-            itemsfound = drawSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
+            itemsfound = handleSearchPage( searchstr, true, Nav->pos, Nav->itemsPerPage );
             if( itemsfound > 0 || blah == "!q" ) {
               break;
             }
@@ -1165,82 +1204,6 @@ namespace SIDView
 
 
 
-    bool SIDExplorer::keywordsTicker( const char* title, size_t totalitems )
-    {
-      static const char* w[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
-      static bool toggle = false;
-      static auto lastTickerMsec = millis();
-      for(int i=0; i<4; i++ ) {
-        w[i] = w[i+1];
-      }
-      w[4] = title;
-
-      if( millis() - lastTickerMsec > 150 ) {
-        UISprite->fillSprite( TFT_ORANGE );
-        int yoffset = UISprite->height()-40;
-        char line[17] = {0};
-        toggle = !toggle;
-        UISprite->setTextDatum( TL_DATUM );
-        UISprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
-        UISprite->drawFastHLine( (UISprite->width()/2-44)+15, (UISprite->height()/2-9)+22, 4, toggle ? TFT_RED : TFT_ORANGE );
-        for(int i=0; i<5; i++ ) {
-          int ypos = i*8 + yoffset;
-          if( w[i] != nullptr ) {
-            snprintf( line, 15, " %-14s", w[i] );
-            UISprite->drawString( line, 0, ypos );
-          }
-        }
-        UISprite->pushSprite(0, 0, TFT_ORANGE );
-        lastTickerMsec = millis();
-      }
-      return true;
-    }
-
-
-
-    void SIDExplorer::keyWordsProgress( size_t current, size_t total, size_t words_count, size_t files_count, size_t folders_count  )
-    {
-      static size_t lastprogress = 0;
-      size_t progress = (100*current)/total;
-      if( progress != lastprogress ) {
-        lastprogress = progress;
-        uint32_t ramUsed = ramSize - ESP.getFreePsram();
-        uint32_t ramUsage = (ramUsed*100) / ramSize;
-        char line[17] = {0};
-        char _words[4], _files[4], _dirs[4];
-
-        Serial.printf("Progress: %d%s\n", progress, "%" );
-        UISprite->fillSprite( TFT_ORANGE );
-        UIDrawProgressBar( progress, total, 8, 24, "Progress:" );
-        UIDrawProgressBar( ramUsage, 100.0, 8, 32, "RAM used:" );
-        UISprite->setTextDatum( TL_DATUM );
-        UISprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
-        if( words_count > 999 ) {
-          snprintf(_words, 4, "%2dK", words_count/1000 );
-        } else {
-          snprintf(_words, 4, "%3d", words_count );
-        }
-        if( files_count > 999 ) {
-          snprintf(_files, 4, "%2dK", files_count/1000 );
-        } else {
-          snprintf(_files, 4, "%3d", files_count );
-        }
-        if( folders_count > 999 ) {
-          snprintf(_dirs, 4, "%2dK", folders_count/1000 );
-        } else {
-          snprintf(_dirs, 4, "%3d", folders_count );
-        }
-        snprintf(line, 17, " %s  %s  %s", _words, _files, _dirs );
-
-        UISprite->drawString( line, 8, 40 );
-        UISprite->drawJpg( iconlist_jpg, iconlist_jpg_len, 8, 40 );
-        UISprite->drawJpg( iconfolder2_jpg, iconfolder2_jpg_len, 48, 40 );
-        UISprite->drawJpg( iconfolder1_jpg, iconfolder1_jpg_len, 88, 40 );
-        UISprite->pushSprite(0, 0, TFT_ORANGE );
-      }
-    }
-
-
     void SIDExplorer::resetWordsCache()
     {
       drawToolPage( "Sharding words", icontool_jpg, icontool_jpg_len, rebuildingPage, 1, TL_DATUM );
@@ -1251,17 +1214,7 @@ namespace SIDView
         display->touch()->sleep();
       #endif
 
-      //UISprite->setPsram(false);
-      UISprite->setColorDepth(8);
-      UISprite->fillSprite( TFT_ORANGE ); // transp color
-      void *sptr = UISprite->createSprite(spriteWidth, display->height() );
-      if( !sptr ) {
-        log_e("Unable to create 16bits sprite for pagination, trying 8 bits");
-        return;
-      }
-      UISprite->setTextDatum( TL_DATUM );
-      UISprite->setFont( &Font8x8C64 );
-      UISprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+      initSearchUI();
 
       indexTaskRunning = true;
       xTaskCreatePinnedToCore( buildSIDWordsIndexTask, "buildSIDWordsIndex", 16384, this, 16, NULL, M5.SD_CORE_ID /*SID_DRAWTASK_CORE*/ ); // will trigger TFT writes
@@ -1274,7 +1227,7 @@ namespace SIDView
       }
     */
 
-      UISprite->deleteSprite();
+      deinitSearchUI();
 
       display->drawString( "Done!", spriteWidth/2, 42 );
       delay(3000);

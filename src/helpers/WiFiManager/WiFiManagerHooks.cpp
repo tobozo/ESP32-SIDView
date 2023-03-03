@@ -1,8 +1,10 @@
 #include "WiFiManagerHooks.hpp"
 
-#include <WiFiManager.h>
-#include <WiFiManagerTz.h>
+#include <WiFiManager.h>   // https://github.com/tzapu/WiFiManager
+#include <WiFiManagerTz.h> // https://github.com/tobozo/WiFiManagerTz
 
+
+// Note: WiFiManagerNS namespace belongs to <WiFiManagerTz.h> library
 namespace WiFiManagerNS
 {
 
@@ -24,15 +26,14 @@ namespace WiFiManagerNS
   void setup()
   {
     if( !wifiManager ) wifiManager = new WiFiManager();
-
     // optionally attach external RTC update callback
     NTP::onTimeAvailable( &on_time_available );
-
     // attach NTP/TZ/Clock-setup page to the WiFi Manager
-    init( wifiManager );
+    WiFiManagerNS::init( wifiManager );
 
     if( !wifiManager ) {
       log_e("Unable to launch WiFiManager, aborting");
+      return;
     }
 
     // /!\ make sure "custom" is listed there as it's required to pull the "Setup Clock" button
@@ -45,13 +46,12 @@ namespace WiFiManagerNS
     wifiManager->setConfigPortalTimeout(120);    // will wait 2mn before closing portal
     wifiManager->setSaveConfigCallback([](){ configSaved = true;}); // restart on credentials save, ESP32 doesn't like to switch between AP/STA
 
-    if(wifiManager->autoConnect("AutoConnectAP", "12345678")){
+    if( wifiManager->autoConnect( WIFIMANAGER_AP_SSID, WIFIMANAGER_AP_PASS ) ) {
       Serial.print("Connected to Access Point, visit http://");
       Serial.print(WiFi.localIP());
       Serial.println(" to setup the clock or change WiFi settings");
       wifiManager->startConfigPortal();
     } else {
-
       Serial.println("Configportal is running, no WiFi has been set yet");
     }
 

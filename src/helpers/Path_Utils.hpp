@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../config.h"
+//#include "../config.h"
 
 #if !defined SID_DOWNLOAD_ARCHIVES
 

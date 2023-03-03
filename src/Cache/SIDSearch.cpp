@@ -1,7 +1,8 @@
 
-#include "SIDSearch.hpp"
+//#include "SIDSearch.hpp"
 #include "SIDCacheManager.hpp"
 
+#if defined ENABLE_HVSC_SEARCH
 
 namespace SIDView
 {
@@ -676,3 +677,6 @@ namespace SIDView
   }
 
 }; // end namespace SIDView
+
+
+#endif // defined ENABLE_HVSC_SEARCH

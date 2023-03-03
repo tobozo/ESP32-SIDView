@@ -2,11 +2,11 @@
 #include "UI_Utils.hpp"
 
 #include "../Cache/SIDVirtualFolders.hpp"
-#include "../helpers/led_vu_meter.hpp"
 
 namespace SIDView
 {
   LGFX *display         = nullptr;
+  SIDExplorer* Explorer = nullptr;
   xSemaphoreHandle mux  = NULL; // this is needed to mitigate SPI collisions
 
 };
@@ -43,15 +43,18 @@ namespace UI_Utils
   SongHeader_t songHeader;
   vumeter_builtin_led_t led_meter;
 
+  bool explorer_needs_redraw = false; // sprite ready to be pushed
+  bool songheader_needs_redraw = false;
   bool firstRender          = true;  // for ui initial loading effect
   char lineText[264]        = {0};
-  const char* loopmodeicon  = (const char*)iconloop_jpg;
+  uint8_t* loopmodeicon     = (uint8_t*)iconloop_jpg;
   uint8_t folderDepth       = 0;
   uint16_t itemsPerPage     = 8;
   size_t loopmodeicon_len   = iconloop_jpg_len;
+  //uint32_t inactive_since   = 0; // UI debouncer
   UI_mode_t UI_mode         = UI_mode_t::none;
 
-  OscilloView **oscViews         = nullptr;
+  //OscilloView **oscViews         = nullptr;
   //ScrollableItem *scrollableText = nullptr;
   ScrollableItem *listScrollableText = nullptr;
   ScrollableItem *songScrollableText = nullptr;
@@ -200,20 +203,23 @@ namespace UI_Utils
   // attach pwm to channel
   void vumeter_builtin_led_t::init()
   {
-    ledcSetup(channel, freq_hz, resolution);
-    ledcAttachPin(pin, channel);
-    off();
+    if( pin ) {
+      ledcSetup(channel, freq_hz, resolution);
+      ledcAttachPin(pin, channel);
+      off();
+    }
   }
 
   // detach
   void vumeter_builtin_led_t::deinit()
   {
-    ledcDetachPin(pin);
+    if( pin ) ledcDetachPin(pin);
   }
 
 
   void vumeter_builtin_led_t::setFreq( int _freq_hz )
   {
+    if( !pin ) return;
     _freq_hz = std::max( 10, std::min(_freq_hz, 5000) );
     if( _freq_hz != freq_hz ) {
       freq_hz = _freq_hz;
@@ -226,6 +232,7 @@ namespace UI_Utils
   // positive values between 0 (dark) and 1 (bright)
   void vumeter_builtin_led_t::set( float value, int _freq_hz )
   {
+    if( !pin ) return;
     setFreq( _freq_hz );
     value = std::max( value, std::min(value, 1.0f) );
     uint8_t brightness = map( value*100, 0, 100, off_value, on_value );
@@ -332,11 +339,16 @@ namespace UI_Utils
 
   void SongHeader_t::loop()
   {
+    if( ! sidPlayer->isPlaying() ) return;
     uint32_t song_duration = sidPlayer->getCurrentTrackDuration();
+    if( song_duration == 0 ) return;
 
-    if( song_duration == 0 ) {
-      // silence or wait for song load
-      return;
+    bool draw_header = false;
+
+    if( songheader_needs_redraw ) {
+      setSong();
+      draw_header = true;
+      songheader_needs_redraw = false;
     }
 
     // track progress
@@ -344,29 +356,39 @@ namespace UI_Utils
     deltaMM = (sidPlayer->currenttune->delta_song_duration/60000)%60;
     deltaSS = (sidPlayer->currenttune->delta_song_duration/1000)%60;
 
+    // 1) time progress changed => drawProgress() / clearProgress()
+    // 2) subsong / track changed => setSong(), drawSong()
+    // 3) playerloopmode changed => drawSong()
+    // 4) volume changed => drawSong()
+    // 5) scroll position changed => songScrollableText->doscroll();
+
     if( deltaMM != lastMM || deltaSS != lastSS ) {
       lastMM = deltaMM;
       lastSS = deltaSS;
       lastprogress = 0; // force progress render
     }
 
+    // song changed, update headers
     if( lastsubsong != sidPlayer->currenttune->currentsong || SongCache->CacheItemNum != lastCacheItemNum ) {
       lastsubsong = sidPlayer->currenttune->currentsong;
       lastCacheItemNum = SongCache->CacheItemNum;
       currentprogress = 0;
       lastMM = 0;
       lastSS = 0;
-      //song_name_needs_scrolling = false; // wait for the next redraw
       draw_header = true;
+      vTaskDelay(10);
     }
+
     if( lastplayerloopmode != playerloopmode ) {
       lastplayerloopmode = playerloopmode;
       draw_header = true;
     }
+
     if( lastvolume != sidPlayer->getMaxVolume() ) {
       lastvolume = sidPlayer->getMaxVolume();
       draw_header = true;
     }
+
     /*
     if( sidPlayer->getPositionInPlaylist() != Explorer->positionInPlaylist ) {
       currentprogress = 0;
@@ -399,6 +421,9 @@ namespace UI_Utils
 
   void SongHeader_t::setSong()
   {
+    lastMM = 0xff;
+    lastSS = 0xff;
+
     snprintf( songNameStr, 255, " %s by %s (c) %s ", sidPlayer->getName(), sidPlayer->getAuthor(), sidPlayer->getPublished() );
     sprintf( filenumStr, " Song:%2d/%-2d  Track:%3d/%-3d ", sidPlayer->getCurrentSong()+1, sidPlayer->getSongsCount(), SongCache->CacheItemNum+1, Nav->size() );
 
@@ -406,11 +431,8 @@ namespace UI_Utils
     scrollwidth/=8;
     scrollwidth*=8;
     if( scrollwidth < display->textWidth( songNameStr ) ) {
-      //Serial.println("Reset scroll");
-      //if( !song_name_needs_scrolling ) {
-        songScrollableText->setup( songNameStr, 0, 32, scrollwidth, display->fontHeight(), 30, true );
-        song_name_needs_scrolling = true;
-      //}
+      songScrollableText->setup( songNameStr, 0, 32, scrollwidth, display->fontHeight(), 30, true );
+      song_name_needs_scrolling = true;
     } else {
       song_name_needs_scrolling = false;
     }
@@ -425,7 +447,7 @@ namespace UI_Utils
     spriteText->setTextSize(1);
 
     //takeSidMuxSemaphore();
-    display->startWrite();
+    //display->startWrite();
 
     display->drawJpg( (uint8_t*)loopmodeicon, loopmodeicon_len, 0, 16 );
     drawVolumeIcon( spriteWidth-9, 16, sidPlayer->getMaxVolume() );
@@ -441,7 +463,7 @@ namespace UI_Utils
     }
     spriteText->pushSprite(0,32);
 
-    display->endWrite();
+    //display->endWrite();
     //giveSidMuxSemaphore();
   }
 
@@ -454,7 +476,7 @@ namespace UI_Utils
     uint32_t len_dark  = spriteWidth-len_light;
 
     //takeSidMuxSemaphore();
-    display->startWrite();
+    //display->startWrite();
 
     // progress text
     display->setTextColor( C64_DARKBLUE, C64_MAROON );
@@ -474,7 +496,7 @@ namespace UI_Utils
     display->drawFastHLine( 0,         29, len_light, C64_MAROON_DARK );
     display->fillRect( len_light, 26, len_dark, 4, C64_DARKBLUE );
 
-    display->endWrite();
+    //display->endWrite();
     //giveSidMuxSemaphore();
   }
 
@@ -487,13 +509,28 @@ namespace UI_Utils
   }
 
 
+  uint8_t regs[29];
+  SID_Registers_t registers = SID_Registers_t(regs);
+  //SID_Registers_t* registersPtr = nullptr;
+
 
   void drawWaveforms()
   {
     float avglevel[3]; // stores average voice levels for led meter
     float avgfreq = 0; // stores average voice frequencies for led meter
 
+    //sidPlayer->sid.copyRegisters( &registers );
+    auto registersPtr = sidPlayer->sid.getRegisters();
+    //registers = SID_Registers_t(registersPtr);
+
+    // xSemaphoreTake(sidPlayer->sid.reg_mux, portMAX_DELAY);
+    // auto regPtr = sidPlayer->sid.getRegisters();
+    // auto registers = SID_Registers_t( regPtr ); // copy 29 bytes
+    // xSemaphoreGive(sidPlayer->sid.reg_mux);
+
     for( int voice=0; voice<3; voice++ ) {
+      //oscViews[voice]->setRegisters( &registers );
+      oscViews[voice]->setRegisters( (SID_Registers_t*)registersPtr );
       oscViews[voice]->process( voice );
       avglevel[voice] = oscViews[voice]->getAvgLevel();
       avgfreq += oscViews[voice]->getFreq();
@@ -867,6 +904,205 @@ namespace UI_Utils
   }
 
 
+
+  #if defined HID_TOUCH
+
+    TouchButtonWrapper_t tbWrapper;
+    int touchSpriteOffset = 0;
+
+    void TouchButtonWrapper_t::handlePressed( TouchButton *btn, bool pressed, int16_t x, int16_t y)
+    {
+      if (pressed && btn->contains(x, y)) {
+        log_v("Press at [%d:%d]", x, y );
+        btn->press(true); // tell the button it is pressed
+      } else {
+        if( pressed ) {
+          log_v("Outside Press at [%d:%d]", x, y );
+        }
+        btn->press(false); // tell the button it is NOT pressed
+      }
+    }
+
+
+    void TouchButtonWrapper_t::handleJustPressed( TouchButton *btn, const char* label )
+    {
+      if ( btn->justPressed() ) {
+        btn->drawButton(true, label);
+        draw();
+        //pushIcon( label );
+      }
+    }
+
+
+    bool TouchButtonWrapper_t::justReleased( TouchButton *btn, bool pressed, const char* label )
+    {
+      bool ret = false;
+      if ( btn->justReleased() && (!pressed)) {
+        // callable
+        ret = true;
+      } else if ( btn->justReleased() && (pressed)) {
+        // state change but not callable
+        ret = false;
+      } else {
+        // no change, no need to draw
+        return false;
+      }
+      btn->drawButton(false, label);
+      draw();
+      //pushIcon( label );
+      return ret;
+    }
+
+    void TouchButtonWrapper_t::draw()
+    {
+      buttonsSprite->pushSprite( spritePosX, spritePosY );
+    }
+
+
+    void shapeTriangleUpCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label )
+    {
+      uint_fast8_t r = (w < h ? w : h) >> 2;
+      _gfx->fillTriangle( x+w/2, r+y, r+x, y+h-r, x+w-r, y+h-r, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+      if( invert ) {
+        _gfx->drawTriangle( x+w/2, r+y, r+x, y+h-r, x+w-r, y+h-r, C64_LIGHTBLUE );
+      }
+      _gfx->drawRoundRect( x, y, w, h, r, C64_LIGHTBLUE );
+    }
+
+    void shapeTriangleDownCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label )
+    {
+      uint_fast8_t r = (w < h ? w : h) >> 2;
+      _gfx->fillTriangle( r+x, r+y, x+w-r, r+y, x+w/2, y+h-r, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+      if( invert ) {
+        _gfx->drawTriangle( r+x, r+y, x+w-r, r+y, x+w/2, y+h-r, C64_LIGHTBLUE);
+      }
+      _gfx->drawRoundRect( x, y, w, h, r, C64_LIGHTBLUE );
+    }
+
+    void shapeTrianglePrevCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label )
+    {
+      uint_fast8_t r = (w < h ? w : h) >> 2;
+      _gfx->fillTriangle( x+w-r-1, y+h-r, x+w-r-1, y+r, r*2+x-2, y+h/2, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+      _gfx->fillRect( r+x+1, y+r+1, r-1, h-r*2, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+      if( invert ) {
+        _gfx->drawTriangle( x+w-r-1, y+h-r, x+w-r-1, y+r, r*2+x-2, y+h/2, C64_LIGHTBLUE );
+        _gfx->drawRect( r+x+1, y+r+1, r-1, h-r*2, C64_LIGHTBLUE );
+      }
+      _gfx->drawRoundRect( x, y, w, h, r, C64_LIGHTBLUE );
+    }
+
+    void shapeTriangleNextCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label )
+    {
+      uint_fast8_t r = (w < h ? w : h) >> 2;
+      _gfx->fillTriangle( x+r, y+r, x+w-r*2, y+h/2, x+r, y+h-r, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+
+      _gfx->fillRect( x+w-r*2, y+r+1, r-1, h-r*2, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+      if( invert ) {
+        _gfx->drawRect( x+w-r*2, y+r+1, r-1, h-r*2, C64_LIGHTBLUE );
+        _gfx->drawTriangle( x+r, y+r, x+w-r*2, y+h/2, x+r, y+h-r, C64_LIGHTBLUE );
+      }
+      _gfx->drawRoundRect( x, y, w, h, r, C64_LIGHTBLUE );
+    }
+
+    void shapeTriangleRightCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label )
+    {
+      uint_fast8_t r = (w < h ? w : h) >> 2;
+      _gfx->fillRoundRect( x, y, w, h, r, C64_DARKBLUE );
+      if( SIDView::sidPlayer->isPlaying() ) {
+        _gfx->fillRoundRect( x+r, y+r, w-r*2, h-r*2, r/2, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+        if( invert )
+          _gfx->drawRoundRect( x+r, y+r, w-r*2, h-r*2, r/2, C64_LIGHTBLUE );
+      } else {
+        _gfx->fillTriangle( x+r, y+r, x+w-r, y+h/2, x+r, y+h-r, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+        if( invert )
+          _gfx->drawTriangle( x+r, y+r, x+w-r, y+h/2, x+r, y+h-r, C64_LIGHTBLUE);
+      }
+      _gfx->drawRoundRect( x, y, w, h, r, C64_LIGHTBLUE );
+    }
+
+    void shapeLoopToggleCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label )
+    {
+      uint_fast8_t r = (w < h ? w : h) >> 2;
+      _gfx->fillRoundRect( x, y, w, h, r, C64_DARKBLUE );
+      if( invert ) {
+        _gfx->drawJpg( iconloop_jpg, iconloop_jpg_len, x+r*1.5, y+r, 0, 0, 0, 0, 1.5F, 1.5F, TL_DATUM );
+      } else {
+        _gfx->drawJpg( iconloop_jpg, iconloop_jpg_len, 1+x+r, y-1+r, 0, 0, 0, 0, 2.0F, 2.0F, TL_DATUM );
+      }
+      _gfx->drawRoundRect( x, y, w, h, r, C64_LIGHTBLUE );
+    }
+
+    void shapePlusCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label )
+    {
+      _gfx->fillEllipse( x+w/2, y+h/2, w/2, h/2, invert ? C64_LIGHTBLUE : C64_DARKBLUE );
+      _gfx->setTextDatum( MC_DATUM );
+      _gfx->setTextSize(2);
+      _gfx->setTextColor( invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+      _gfx->drawString("+", x-1+w/2, y+1+h/2 );
+      _gfx->drawEllipse( x+w/2, y+h/2, w/2, h/2, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+    }
+
+    void shapeMinusCb( LovyanGFX *_gfx, int32_t x, int32_t y, int32_t w, int32_t h, bool invert, const char* label )
+    {
+      _gfx->fillEllipse( x+w/2, y+h/2, w/2, h/2, invert ? C64_LIGHTBLUE : C64_DARKBLUE );
+      _gfx->setTextDatum( MC_DATUM );
+      _gfx->setTextSize(2);
+      _gfx->setTextColor( invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+      _gfx->drawString("-", x-1+w/2, y+1+h/2 );
+      _gfx->drawEllipse( x+w/2, y+h/2, w/2, h/2, invert ? C64_DARKBLUE : C64_LIGHTBLUE );
+    }
+
+
+    void drawTouchButtons()
+    {
+      for( int i=0;i<8;i++ ) {
+        UIBtns[i].button->drawButton();
+      }
+    }
+
+
+    void releaseTouchButtons()
+    {
+      for( int i=0;i<8;i++ ) {
+        UIBtns[i].button->press(false);
+      }
+    }
+
+
+    void registerButtonAction( LGFX_Sprite *sprite, TouchButtonAction_t *btna )
+    {
+      btna->button = new TouchButton();
+      btna->button->initButton(
+          sprite,
+          btna->x, btna->y, btna->w, btna->h,
+          C64_DARKBLUE, C64_LIGHTBLUE, C64_DARKBLUE, // outline, fill, text
+          (char*)btna->label, btna->font_size
+      );
+      if( btna->cb != nullptr ) {
+        btna->button->setDrawCb( btna->cb );
+      }
+      btna->button->setLabelDatum(0, 0, MC_DATUM);
+      btna->button->press(false);
+    }
+
+
+    void setupUIBtns( LGFX_Sprite *sprite, int x, int y, int w, int h, int xoffset, int yoffset )
+    {
+      tbWrapper.buttonsSprite = sprite;
+      tbWrapper.spritePosX = xoffset;
+      tbWrapper.spritePosY = yoffset;
+
+      touchSpriteOffset = yoffset;
+
+      for( int i=0;i<8;i++ ) {
+        registerButtonAction( sprite, &UIBtns[i] );
+      }
+    }
+
+  #endif
+
+
+
   #if defined SID_DOWNLOAD_ARCHIVES
 
     void UIPrintTitle( const char* title, const char* message )
@@ -892,6 +1128,106 @@ namespace UI_Utils
 
 
   #if defined ENABLE_HVSC_SEARCH
+
+    void initSearchUI()
+    {
+      UISprite->setColorDepth(8);
+      UISprite->fillSprite( TFT_ORANGE ); // transp color
+      void *sptr = UISprite->createSprite(spriteWidth, display->height() );
+      if( !sptr ) {
+        log_e("Unable to create 16bits sprite for pagination, trying 8 bits");
+        return;
+      }
+      UISprite->setTextDatum( TL_DATUM );
+      UISprite->setFont( &Font8x8C64 );
+      UISprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+    }
+
+
+    void deinitSearchUI()
+    {
+      UISprite->deleteSprite();
+    }
+
+
+
+    bool keywordsTicker( const char* title, size_t totalitems )
+    {
+      static const char* w[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+      static bool toggle = false;
+      static auto lastTickerMsec = millis();
+      for(int i=0; i<4; i++ ) {
+        w[i] = w[i+1];
+      }
+      w[4] = title;
+
+      if( millis() - lastTickerMsec > 150 ) {
+        UISprite->fillSprite( TFT_ORANGE );
+        int yoffset = UISprite->height()-40;
+        char line[17] = {0};
+        toggle = !toggle;
+        UISprite->setTextDatum( TL_DATUM );
+        UISprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+        UISprite->drawFastHLine( (UISprite->width()/2-44)+15, (UISprite->height()/2-9)+22, 4, toggle ? TFT_RED : TFT_ORANGE );
+        for(int i=0; i<5; i++ ) {
+          int ypos = i*8 + yoffset;
+          if( w[i] != nullptr ) {
+            snprintf( line, 16, " %-14s", w[i] );
+            UISprite->drawString( line, 0, ypos );
+          }
+        }
+        UISprite->pushSprite(0, 0, TFT_ORANGE );
+        lastTickerMsec = millis();
+      }
+      return true;
+    }
+
+
+
+    void keyWordsProgress( size_t current, size_t total, size_t words_count, size_t files_count, size_t folders_count  )
+    {
+      static size_t lastprogress = 0;
+      size_t progress = (100*current)/total;
+      if( progress != lastprogress ) {
+        lastprogress = progress;
+        uint32_t ramUsed = SIDView::ramSize - ESP.getFreePsram();
+        uint32_t ramUsage = (ramUsed*100) / SIDView::ramSize;
+        char line[17] = {0};
+        char _words[4], _files[4], _dirs[4];
+
+        Serial.printf("Progress: %d%s\n", progress, "%" );
+        UISprite->fillSprite( TFT_ORANGE );
+        UIDrawProgressBar( progress, total, 8, 24, "Progress:" );
+        UIDrawProgressBar( ramUsage, 100.0, 8, 32, "RAM used:" );
+        UISprite->setTextDatum( TL_DATUM );
+        UISprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
+        if( words_count > 999 ) {
+          snprintf(_words, 4, "%2dK", (uint16_t)words_count/1000 );
+        } else {
+          snprintf(_words, 4, "%3d", words_count );
+        }
+        if( files_count > 999 ) {
+          snprintf(_files, 4, "%2dK", (uint16_t)files_count/1000 );
+        } else {
+          snprintf(_files, 4, "%3d", files_count );
+        }
+        if( folders_count > 999 ) {
+          snprintf(_dirs, 4, "%2dK", (uint16_t)folders_count/1000 );
+        } else {
+          snprintf(_dirs, 4, "%3d", folders_count );
+        }
+        snprintf(line, 17, " %s  %s  %s", _words, _files, _dirs );
+
+        UISprite->drawString( line, 8, 40 );
+        UISprite->drawJpg( iconlist_jpg, iconlist_jpg_len, 8, 40 );
+        UISprite->drawJpg( iconfolder2_jpg, iconfolder2_jpg_len, 48, 40 );
+        UISprite->drawJpg( iconfolder1_jpg, iconfolder1_jpg_len, 88, 40 );
+        UISprite->pushSprite(0, 0, TFT_ORANGE );
+      }
+    }
+
+
+
     void UIDrawProgressBar( float progress, float total, uint16_t xpos, uint16_t ypos, const char *text )
     {
       static int8_t lastprogress = -1;

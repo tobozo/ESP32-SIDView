@@ -41,7 +41,7 @@ Oscillator::Oscillator( uint32_t freq )
 void Oscillator::setFreqHz( uint32_t hz )
 {
   freqHz     = hz;
-  freqms     = hz * 1000.0;
+  freqms     = hz * 1000.0f;
   if( hz == 0 ) return;
   period_us = 1000000 / freqHz;
   log_v("freqHz: %4d, freqms: %8d, period_us: %5d", freqHz, freqms, period_us );
@@ -54,15 +54,15 @@ float Oscillator::getTriangle( int32_t utime )
   int32_t doublexpos = xpos*2;
   int32_t ypos       = doublexpos%period_us;
   int32_t yprogress  = (ypos*50)/(period_us);
-  int32_t doubleyprogress = (doublexpos > period_us ? yprogress : 50.0-yprogress);
-  return 0.5 - (doubleyprogress / 50.0);
+  int32_t doubleyprogress = (doublexpos > period_us ? yprogress : 50-yprogress);
+  return 0.5 - (doubleyprogress / 50.0f);
 }
 
 float Oscillator::getSawTooth( int32_t utime )
 {
   int32_t ypos       = utime < 0  ? period_us + ((utime+1)%-period_us) : utime%period_us;
-  int32_t yprogress  = 50 - ( (ypos*50)/(period_us) );
-  return 0.5 - (yprogress / 50.0);
+  float yprogress    = 50.0f - ( (ypos*50.0f)/(period_us) );
+  return 0.5f - (yprogress / 50.0f);
 }
 
 float Oscillator::getSquare( int32_t utime, int PWn )
@@ -72,18 +72,18 @@ float Oscillator::getSquare( int32_t utime, int PWn )
   // A value of 2048 ($800) will produce a square wave
   // A value of 4095 will not produce a constant DC output
   int32_t xpos       = utime < 0  ? period_us + ((utime+1)%-period_us) : utime%period_us;
-  float pwn          = (PWn/4095.0) - 0.5; // PWn to per one range -0.5 <-> 0.5
+  float pwn          = (PWn/4095.0f) - 0.5f; // PWn to per one range -0.5 <-> 0.5
   float xlow         = period_us/2 + period_us*pwn;
   bool state         = xpos > xlow;
-  return (state ? 0.5 : -0.5);
+  return (state ? 0.5f : -0.5f);
 }
 
 float Oscillator::getNoise( int32_t utime, int PWn  )
 {
   int32_t xpos       = utime < 0  ? period_us + ((utime+1)%-period_us) : utime%period_us;
-  float pwn          = (PWn/4095.0) - 0.5; // PWn to per one range -0.5 <-> 0.5
+  float pwn          = (PWn/4095.0f) - 0.5f; // PWn to per one range -0.5 <-> 0.5
   float xlow         = period_us/2 +  period_us*pwn;
   int32_t ylevel     = rand()%50;
   bool state         = xpos > xlow;
-  return (state ? ylevel/100.0 : -ylevel/100.0);
+  return (state ? ylevel/100.0f : -ylevel/100.0f);
 }

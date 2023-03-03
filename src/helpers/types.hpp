@@ -1,9 +1,19 @@
 #pragma once
 
 
+
 namespace SIDView
 {
 
+  // throw some superglobals
+  class SIDExplorer;
+  class ScrollableItem;
+
+  extern SIDTunesPlayer *sidPlayer; // SID6581 tunes player
+  extern LGFX *display;
+  extern xSemaphoreHandle mux;
+  extern uint32_t ramSize; // populated at boot for statistics
+  extern SIDExplorer* Explorer;
 
   // CacheManager types
   enum SongCacheType_t
@@ -61,8 +71,16 @@ namespace SIDView
   };
 
 
-  class SIDExplorer;
-  class ScrollableItem;
+
+  #if defined ENABLE_HVSC_SEARCH
+    struct wordpath_t;
+    struct sidpath_t;
+    struct shard_t;
+    typedef bool (*offsetInserter)( sidpath_t* sp, int rank );
+    typedef void (*keywordItemPrintCb)( sidpath_t* item, size_t itemnum ); // search result
+    typedef bool (*searchResultInsertCb)( sidpath_t* sp, int rank );
+  #endif
+
 
 };
 
@@ -105,25 +123,22 @@ namespace UI_Utils
   extern LoadingScreen_t loadingScreen;
 
 
-
   struct SongHeader_t
   {
     int32_t lastprogress     = 0;
     int32_t lastCacheItemNum = -1;
     uint8_t lastvolume       = 0;
-    //uint8_t maxVolume        = 15;
     int16_t lastsubsong      = -1;
     uint8_t deltaMM          = 0;
     uint8_t lastMM           = 0xff;
     uint8_t deltaSS          = 0;
     uint8_t lastSS           = 0xff;
-    unsigned long currentprogress = 0;
-    bool    draw_header      = false;
     bool    song_name_needs_scrolling = false;
-    loopmode playerloopmode     = SID_LOOP_OFF;
-    loopmode lastplayerloopmode = SID_LOOP_ON;
     char    filenumStr[32]   = {0};
     char    songNameStr[256] = {0};
+    unsigned long currentprogress = 0;
+    loopmode playerloopmode     = SID_LOOP_OFF;
+    loopmode lastplayerloopmode = SID_LOOP_ON;
     void loop();
     void setSong();
     void drawSong();
@@ -132,9 +147,6 @@ namespace UI_Utils
   };
 
   extern SongHeader_t songHeader;
-
-
-
 
 
   struct vumeter_builtin_led_t

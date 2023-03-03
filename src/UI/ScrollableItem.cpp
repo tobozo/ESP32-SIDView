@@ -15,8 +15,10 @@ namespace SIDView
     if( sptr ) scrollSprite->deleteSprite();
   }
 
-  ScrollableItem::ScrollableItem( LGFX* display )
+  ScrollableItem::ScrollableItem( LGFX* _display )
   {
+    assert( _display );
+    display = _display;
     if( !scrollSprite ) scrollSprite = new LGFX_Sprite( display );
     scrollSprite->setColorDepth(1);
     scrollSprite->setPsram( false );
@@ -35,9 +37,6 @@ namespace SIDView
     invert = _invert;
     smooth = _smooth;
     last   = millis()-_delay;
-    scroll = true;
-
-    log_d("text:%s, xpos:%d, ypos:%d, width:%d, height:%d, delay:%d, invert:%d, smooth", _text, _xpos, _ypos, _width, _height, _delay, _invert, _smooth);
 
     if( sptr ) scrollSprite->deleteSprite();
 
@@ -51,6 +50,7 @@ namespace SIDView
       log_e("Failed to create scroll sprite, aborting");
       return;
     }
+    scroll = true;
     scrollSprite->setPaletteColor( 0, C64_DARKBLUE );
     scrollSprite->setPaletteColor( 1, C64_LIGHTBLUE );
 
@@ -61,6 +61,7 @@ namespace SIDView
     }
     //scrollSprite->fillSprite( C64_DARKBLUE );
     scrollSprite->setTextDatum( TL_DATUM );
+    log_d("text:%s, xpos:%d, ypos:%d, width:%d, height:%d, delay:%d, invert:%d, smooth", _text, _xpos, _ypos, _width, _height, _delay, _invert, _smooth);
   }
 
 
@@ -75,15 +76,11 @@ namespace SIDView
 
     is_scrolling = true;
 
-    //takeSidMuxSemaphore();
-
     if( smooth ) {
       scrollSmooth();
     } else {
       scrollUgly();
     }
-
-    //giveSidMuxSemaphore();
 
     is_scrolling = false;
   }

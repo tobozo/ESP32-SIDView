@@ -30,6 +30,7 @@ namespace SIDView
       uint8_t smooth_offset = 0;
       void* sptr = nullptr;
       LGFX_Sprite *scrollSprite = nullptr;//new LGFX_Sprite( &tft );
+      LGFX * display = nullptr;
   };
 
 }

@@ -35,7 +35,6 @@
 
 using namespace UI_Colors;
 
-
 OscilloView::~OscilloView()
 {
   if( sptr != nullptr ) {
@@ -65,7 +64,7 @@ void OscilloView::init( SID6581 *_sid, std::uint32_t fgcol, std::uint32_t bgcol,
   bool sprite_cached = false;
 
   if( sptr == nullptr ) {
-    oscSprite->setPsram(false);
+    oscSprite->setPsram( false );
     oscSprite->setColorDepth(lgfx::palette_1bit);
     sptr = oscSprite->createSprite( graphWidth, spriteHeight );
     if( !sptr ) {
@@ -138,26 +137,38 @@ void OscilloView::setOscType( uint8_t type )
 float OscilloView::getOscFloatValue( float t )
 {
   float ret = 0;
-  float units = 0.0;
+  //showUnits = 0;
+  float wfunits = 0.0;
+
   if( oscType & SID_WAVEFORM_TRIANGLE ) {
-    ret += osc->getTriangle( t );
-    units++;
+    float triangle = osc->getTriangle( t );
+    //if( triangle <-0.5f || triangle > 0.5f ) log_e("triangle overflow: %.2f", triangle );
+    ret += triangle;
+    wfunits++;
   }
   if( oscType & SID_WAVEFORM_SAWTOOTH ) {
-    ret += osc->getSawTooth( t );
-    units++;
+    float sawtooth = osc->getSawTooth( t );
+    ret += sawtooth;
+    //if( sawtooth <-0.5f || sawtooth > 0.5f ) log_e("sawtooth overflow: %.2f", sawtooth );
+    wfunits++;
   }
   if( oscType & SID_WAVEFORM_PULSE ) {
-    ret += osc->getSquare( t, pulsewidth );
-    units++;
+    float pulse = osc->getSquare( t, pulsewidth );
+    ret += pulse;
+    //if( pulse <-0.5f || pulse > 0.5f ) log_e("pulse overflow: %.2f", pulse );
+    wfunits++;
   }
   if( oscType & SID_WAVEFORM_NOISE ) {
-    ret += osc->getNoise( t, pulsewidth );
-    units++;
+    float noise = osc->getNoise( t, pulsewidth );
+    ret += noise;
+    //if( noise <-0.5f || noise > 0.5f ) log_e("noise overflow: %.2f", noise );
+    wfunits++;
   }
-  if( units > 1 ) {
-    ret /= units;
+  if( wfunits > 1 ) {
+    ret /= wfunits;
   }
+  //showUnits = wfunits;
+
   return ret;
 }
 
@@ -187,96 +198,21 @@ void OscilloView::process( int voice )
   }
 
   oscSprite->fillSprite( bgcolor ); // clear sprite
+  info.load( registers, voice ); // process all SID registers
 
-  //auto registers = SID6581::copyRegisters();
-  //auto voiceregs = registers.voice(voice);
-
-  auto registers = (SID_Registers_t*)sid->getRegisters();
-  auto voiceregs = registers->voice(voice);
-
-
-  bool        gate = voiceregs.gate();
-  bool    ringmode = voiceregs.ringmode();
-  bool        sync = voiceregs.sync();
-  float pulsewidth = voiceregs.pulse();
-  float     attack = voiceregs.attack();
-  float      decay = voiceregs.decay();
-  float    sustain = voiceregs.sustain();
-  float    release = voiceregs.release();
-  uint8_t waveform = voiceregs.waveform();
-  uint32_t    fout = (double)voiceregs.freq()/16.777216;
-
-  // bool        gate = sid->getGate( voice )==1;
-  // uint8_t waveform = sid->getWaveForm(voice);
-  // uint32_t    fout = sid->getFrequencyHz(voice);// * 0.00596; // Fout = (Fn * 0.0596) Hz
-  // int     ringmode = sid->getRingMode( voice );
-  // int         sync = sid->getSync( voice );
-  // float pulsewidth = sid->getPulse(voice);
-  // float     attack = sid->getAttack(voice);  // 0-15
-  // float      decay = sid->getDecay(voice);   // 0-15
-  // float    sustain = sid->getSustain(voice); // 0-15
-  // float    release = sid->getRelease(voice); // 0-15
-
-  bool has_filter = false;
-
-  switch( voice ) {
-    // case 0: has_filter = sid->getFilter1()==1; break;
-    // case 1: has_filter = sid->getFilter2()==1; break;
-    // case 2: has_filter = sid->getFilter3()==1 && sid->get3OFF()==0; break;
-    case 0: has_filter = registers->filt1(); break;
-    case 1: has_filter = registers->filt2(); break;
-    case 2: has_filter = registers->filt3() && !registers->mode3off(); break;
-    default: break;
+  if( info.has_lowpass_filter ) {
+    lowPassFilter->setCutoffFreqAndResonance( info.Cutoff, info.Resonance );
   }
 
-  // When set to a one, the low Pass output of the Filter is selected and sent to the audio output.
-  // For a given Filter input Signal, all frequency components below the Filter Cutoff Frequency
-  // are passed unaltered, while all frequency components above the Cutoff are attenuated at a rate
-  // of 12 dB/Octave. The low Pass mode produces full-bodied sounds.
-  bool has_lowpass = registers->lp(); // low pass
+  setADSR( info.attack * sampleRate_ms, info.decay * sampleRate_ms, info.sustain, info.release * sampleRate_ms, 1.0f, 1.0f );
+  setFreqHz( info.fout ); // * 0.00596; // Fout = (Fn * 0.0596) Hz
+  setOscType( info.waveform );
+  setPulseWidth( info.pulsewidth );
 
-  // Same as bit 4 for the High Pass output. All frequency components above the Cutoff are passed
-  // unaltered, while all frequency components below the Cutoff are attenuated at a rate of 12
-  // dB/Octave. The High Pass mode produces tinny, buzzy sounds.
-  bool has_highpass = registers->hp(); // high pass
-
-  // Same as bit 4 for the Band Pass output. All frequency components above and below the Cutoff
-  // are attenuated at a rate of 6 dB/Octave. The Band Pass mode produces thin, open sounds.
-  bool has_bandpass = registers->bp(); // band pass
-
-  // The approximate Cutoff Frequency ranges between 30Hz and 12KHz (11bit value)
-  uint16_t LowHiFilterFreq = registers->cutoff(); // sid->getFilterFrequency();
-
-  // Bits 4-7 of this register (RES0-RES3) control the Resonance of the Filler, resonance of a
-  // peaking effect which emphasizes frequency components at the Cutoff Frequency of the Filter,
-  // causing a sharper sound. There are 16 Resonance settings ranging linearly from no resonance
-  // (0) to maximum resonance (15 or #F).
-  //int ResonanceHex = sid->getResonance();
-  uint8_t ResonanceHex = registers->resonance();
-
-  // check if this voice has lowpass filter enabled
-  bool has_lowpass_filter = has_filter && has_lowpass;
-
-  if( has_lowpass_filter ) {
-    // map those values to [0...1] float range
-    float Cutoff        = 1.0 - float( map( LowHiFilterFreq, 30, 10000, 0, 1000 ) ) / 1000.0f;
-    float Resonance     = float( map( ResonanceHex, 0, 15, 0, 1000 ) ) / 1000.0f;
-    lowPassFilter->setCutoffFreqAndResonance( Cutoff, Resonance );
-  }
-
-  attack  = getEnveloppeRateMs( RATE_ATTACK, attack );
-  decay   = getEnveloppeRateMs( RATE_DECAY, decay );
-  release = getEnveloppeRateMs( RATE_RELEASE, release );
-
-  setADSR( attack * sampleRate_ms, decay * sampleRate_ms, sustain/15.0f, release * sampleRate_ms, 1.0f, 1.0f );
-  setFreqHz( fout );
-  setOscType( waveform );
-  setPulseWidth( pulsewidth );
-
-  if( gated != gate ) {
-    if( gate ) env->reset();
-    env->gate( gate );
-    gated = gate;
+  if( gated != info.gate ) {
+    if( info.gate ) env->reset();
+    env->gate( info.gate );
+    gated = info.gate;
     samplepos = 0;
   }
 
@@ -289,23 +225,81 @@ void OscilloView::process( int voice )
     float output = adsramplitude*oscVal; // Oscillator * ADSR value ranges -0.5 <-> 0.5
     valuesCacheAvg += output;
     valuesCache[i] = output;
-    if( has_lowpass_filter ) {
+    if( info.has_lowpass_filter ) {
       valuesCache[i] = lowPassFilter->Process( valuesCache[i] );
     }
   }
 
   if( showFPS ) renderFPS();
+  if( showWaveform ) renderWaveform();
 
   // scale values to viewport height and position to vmiddle
-  valuesCache[0] = (valuesCache[0]*graphHeight)+graphHeight/2;
+  valuesCache[0] = (valuesCache[0]*(graphHeight-2.0f))+(graphHeight/2)+1.0f;
 
   for( int i=1; i<graphWidth; i++ ) {
-    valuesCache[i] = (valuesCache[i]*graphHeight)+graphHeight/2;
-    oscSprite->drawLine( i-1, valuesCache[i-1], i, valuesCache[i], fgcolor );
+    valuesCache[i] = (valuesCache[i]*(graphHeight-2.0f))+(graphHeight/2.0f)+1.0f;
+    if( !showWaveform || (showWaveform && i>16) )
+      oscSprite->drawLine( i-1, valuesCache[i-1], i, valuesCache[i], fgcolor );
   }
 
   valuesCacheAvg /= graphWidth;
 }
+
+
+
+lgfx::pixelcopy_t triangle_pixels(triangle_bits, lgfx::grayscale_1bit, lgfx::grayscale_1bit);
+lgfx::pixelcopy_t sawtooth_pixels(sawtooth_bits, lgfx::grayscale_1bit, lgfx::grayscale_1bit);
+lgfx::pixelcopy_t pulse_pixels(pulse_bits, lgfx::grayscale_1bit, lgfx::grayscale_1bit);
+lgfx::pixelcopy_t noise_pixels(noise_bits, lgfx::grayscale_1bit, lgfx::grayscale_1bit);
+lgfx::pixelcopy_t filter_pixels(filter_bits, lgfx::grayscale_1bit, lgfx::grayscale_1bit);
+
+lgfx::pixelcopy_t filter_freq_pixels(filter_freq_bits, lgfx::grayscale_1bit, lgfx::grayscale_1bit);
+lgfx::pixelcopy_t filter_lp_pixels(filter_lp_bits, lgfx::grayscale_1bit, lgfx::grayscale_1bit);
+lgfx::pixelcopy_t filter_hp_pixels(filter_hp_bits, lgfx::grayscale_1bit, lgfx::grayscale_1bit);
+lgfx::pixelcopy_t filter_bp_pixels(filter_bp_bits, lgfx::grayscale_1bit, lgfx::grayscale_1bit);
+
+
+
+void OscilloView::drawIcon( lgfx::pixelcopy_t *icon_data, uint32_t xoffset, uint32_t yoffset, uint32_t width, uint32_t height )
+{
+  oscSprite->pushImage( xoffset, yoffset, width, height, icon_data );
+}
+
+
+void OscilloView::renderWaveform()
+{
+  showUnits = 0;
+
+  if( oscType & SID_WAVEFORM_TRIANGLE ) {
+    drawIcon( &triangle_pixels, 16*showUnits, 8 );
+    showUnits++;
+  }
+  if( oscType & SID_WAVEFORM_SAWTOOTH ) {
+    drawIcon( &sawtooth_pixels, 16*showUnits, 8 );
+    showUnits++;
+  }
+  if( oscType & SID_WAVEFORM_PULSE ) {
+    drawIcon( &pulse_pixels, 16*showUnits, 8 );
+    showUnits++;
+  }
+  if( oscType & SID_WAVEFORM_NOISE ) {
+    drawIcon( &noise_pixels, 16*showUnits, 8 );
+    showUnits++;
+  }
+
+  if( showUnits == 0 ) {
+    if( oscType > 0 ) { // unsupported OSC type, render value as text
+      char text[5] = {0};
+      snprintf( text, 12, "0x%02d", oscType );
+      oscSprite->drawString( text, 0, 8 );
+    }
+  }
+
+  if( info.has_lowpass_filter ) drawIcon( &filter_lp_pixels,  0, 16, 8, 8 );
+  if( info.has_highpass ) drawIcon( &filter_hp_pixels,  8, 16, 8, 8 );
+  if( info.has_bandpass ) drawIcon( &filter_bp_pixels, 16, 16, 8, 8 );
+}
+
 
 
 void OscilloView::renderFPS() {
@@ -324,13 +318,13 @@ void OscilloView::renderFPS() {
   oscSprite->setTextColor( C64_LIGHTBLUE, C64_DARKBLUE );
   oscSprite->setTextDatum( TL_DATUM );
   char text[12] = {0};
-  snprintf( text, 12, "fps: %3d", fps );
+  snprintf( text, 12, "%3dfps", fps );
   oscSprite->drawString( text, 0,0 );
 
 }
 
 
-int OscilloView::getEnveloppeRateMs( rateType_t type, uint8_t rate )
+int OscilloInfo::getEnveloppeRateMs( rateType_t type, uint8_t rate )
 {
 
 

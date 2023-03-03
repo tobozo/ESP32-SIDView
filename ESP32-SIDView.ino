@@ -38,6 +38,8 @@
 
   - https://github.com/hpwit/SID6581
   - https://github.com/lovyan03/LovyanGFX
+  - https://github.com/PaulStoffregen/Time
+  - https://github.com/GOB52/gob_json
   - https://github.com/tobozo/ESP32-Targz
   - https://github.com/tobozo/ESP32-Chimera-Core
   - https://github.com/tobozo/M5Stack-SD-Updater

@@ -4,22 +4,7 @@
 
 #if defined HID_USB
 
-  //#include "HID_Common.hpp"
   #include "HID_USB_Keys.h"
-
-  // WARN: when using SCL/SDA, pins must not be shared
-  // with another I2C device !
-  #define DP_P0  SCL  // always enabled
-  #define DM_P0  SDA  // always enabled
-  #define DP_P1  -1
-  #define DM_P1  -1
-  #define DP_P2  -1
-  #define DM_P2  -1
-  #define DP_P3  -1
-  #define DM_P3  -1
-
-  #define DEBUG_ALL
-  #include <ESP32-USBSoftHost.hpp> // http://librarymanager#ESP32-USB-Soft-Host
 
   // reversed from https://github.com/felis/USB_Host_Shield_2.0
   // /!\ this is limited to only one device (keyboard)
@@ -122,13 +107,13 @@
       {
         switch(key) {
           case UHS_HID_BOOT_KEY_NUM_LOCK:
-            bmNumLock = ~bmNumLock;
+            bmNumLock = !bmNumLock;
           break;
           case UHS_HID_BOOT_KEY_CAPS_LOCK:
-            bmCapsLock = ~bmCapsLock;
+            bmCapsLock = !bmCapsLock;
           break;
           case UHS_HID_BOOT_KEY_SCROLL_LOCK:
-            bmScrollLock = ~bmScrollLock;
+            bmScrollLock = !bmScrollLock;
           break;
         }
         return 0;

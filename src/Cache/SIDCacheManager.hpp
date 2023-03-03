@@ -33,13 +33,6 @@
 
 #include "../config.h"
 #include "../helpers/Path_Utils.hpp"
-#include "../helpers/types.hpp"
-
-#if defined ENABLE_HVSC_SEARCH
-  #include "SIDSearch.hpp"
-#endif
-
-
 
 namespace SIDView
 {
@@ -211,3 +204,10 @@ namespace SIDView
   extern SongCacheManager *SongCache;
 
 }; // end namespace SIDView
+
+
+#if defined ENABLE_HVSC_SEARCH
+  #include "SIDSearch.hpp"
+#endif
+
+

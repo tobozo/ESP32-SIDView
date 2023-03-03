@@ -127,7 +127,10 @@ namespace SIDView
         Serial.printf("[V#%d][F:%04x][P:%03x][A:%x][D:%x][S:%x][R:%x]\n", voiceNum, randFreqValue, randPulseValue, randAttackValue, randDecayValue, randSustainkValue, randReleaseValue );
       }
 
-      auto registers = sid->copyRegisters();
+      SID_Registers_t registers = SID_Registers_t(0);
+      sid->copyRegisters( &registers );
+
+      //auto registers = sid->copyRegisters();
 
       for( voiceNum=0; voiceNum<3; voiceNum++ ) {
 
